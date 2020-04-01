@@ -138,14 +138,14 @@ loop: // label for looping within the lexxer
  
 	integer {
 		p_s->stk->i = atol( (const char *)start );
-		p_s->stk++;
+		INCREMENT_STACK
 		//t->flags|=IS_INT;
 		goto loop;
 	}
 	
 	flt {
 		p_s->stk->d = atof( (const char *)start );
-		p_s->stk++;
+		INCREMENT_STACK
 		//t->flags|=IS_FLOAT;
 		goto loop;
 	}
@@ -176,7 +176,7 @@ loop: // label for looping within the lexxer
 			start++;
 		}
 		//printf("mangled_string_lit:%s\n", tmp);
-		p_s->stk++;
+		INCREMENT_STACK
 		goto loop;
 	}
 	
@@ -186,19 +186,13 @@ loop: // label for looping within the lexxer
 		(p_s->stk+1)->i=safe_atol_64((const u8 **)&start);
 		
 		p_s->stk->s =p_s->strList->ar[(p_s->stk+1)->i/512][(p_s->stk+1)->i%512];
-		p_s->stk++;
+		INCREMENT_STACK
 		//t->l = (YYCURSOR - start)-1;//maybe wrong
 		//t->flags|=IS_STR;
 		goto loop;
 	}
 
 	char_lit {
-		goto loop;
-	}
-	
-	star {
-	p_s->stk--;
-	(p_s->stk-1)->i = (p_s->stk-1)->i*p_s->stk->i;
 		goto loop;
 	}
 
@@ -216,7 +210,7 @@ loop: // label for looping within the lexxer
 	//~ }
 	
 	"p" {
-		p_s->stk--;
+		DECREMENT_STACK
 		p_s->stk->s+=varintGet(p_s->stk->s, (u64*)&(p_s->stk+1)->i);
 		for(u32 x=0; x<(p_s->stk+1)->i; x++){
 			if(p_s->stk->s[x]=='\\') {
@@ -249,103 +243,169 @@ loop: // label for looping within the lexxer
 	}
 
 	"||" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i||p_s->stk->i;
 		goto loop;
 	}
 
 	"&&" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i&&p_s->stk->i;
 		goto loop;
 	}
 
 	"&" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i&p_s->stk->i;
 		goto loop;
 	}
 
 	"^" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i^p_s->stk->i;
 		goto loop;
 	}
 
 	"|" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i|p_s->stk->i;
 		goto loop;
 	}
 
 	"==" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = ((p_s->stk-1)->i)==(p_s->stk->i);
 		goto loop;
 	}
 
 	"!=" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i!=p_s->stk->i;
 		goto loop;
 	}
 
 	"<" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i<p_s->stk->i;
 		goto loop;
 	}
 
 	">" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i>p_s->stk->i;
 		goto loop;
 	}
 
 	"<=" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i<=p_s->stk->i;
 		goto loop;
 	}
 
 	">=" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i>=p_s->stk->i;
 		goto loop;
 	}
 
 	"<<" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i<<p_s->stk->i;
 		goto loop;
 	}
 
 	">>" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i>>p_s->stk->i;
 		goto loop;
 	}
 
 	"+" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i+p_s->stk->i;
 		goto loop;
 	}
 
 	"-" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i-p_s->stk->i;
 		goto loop;
 	}
 
 	"/" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i/p_s->stk->i;
+		goto loop;
+	}
+	
+	"*" {
+		DECREMENT_STACK
+		(p_s->stk-1)->i = (p_s->stk-1)->i*p_s->stk->i;
+		goto loop;
+	}
+
+	"f+" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = (p_s->stk-1)->d+p_s->stk->d;
+		goto loop;
+	}
+
+	"f-" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = (p_s->stk-1)->d-p_s->stk->d;
+		goto loop;
+	}
+
+	"f/" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = (p_s->stk-1)->d/p_s->stk->d;
+		goto loop;
+	}
+	
+	"f*" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = (p_s->stk-1)->d*p_s->stk->d;
+		goto loop;
+	}
+	
+	"f==" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = ((p_s->stk-1)->d)==(p_s->stk->d);
+		goto loop;
+	}
+
+	"f!=" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = (p_s->stk-1)->d!=p_s->stk->d;
+		goto loop;
+	}
+
+	"f<" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = (p_s->stk-1)->d<p_s->stk->d;
+		goto loop;
+	}
+
+	"f>" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = (p_s->stk-1)->d>p_s->stk->d;
+		goto loop;
+	}
+
+	"f<=" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = (p_s->stk-1)->d<=p_s->stk->d;
+		goto loop;
+	}
+
+	"f>=" {
+		DECREMENT_STACK
+		(p_s->stk-1)->d = (p_s->stk-1)->d>=p_s->stk->d;
 		goto loop;
 	}
 
 	"%" {
-		p_s->stk--;
+		DECREMENT_STACK
 		(p_s->stk-1)->i = (p_s->stk-1)->i%p_s->stk->i;
 		goto loop;
 	}
@@ -353,6 +413,14 @@ loop: // label for looping within the lexxer
 	"." {
 		for(int x =0 ; &p_s->stk_start[x]!=p_s->stk;x++){
 			printf("[%ld] ",p_s->stk_start[x].i);
+		}
+		printf("\n");
+		goto loop;
+	}
+	
+	"f." {
+		for(int x =0 ; &p_s->stk_start[x]!=p_s->stk;x++){
+			printf("[%f] ",p_s->stk_start[x].d);
 		}
 		printf("\n");
 		goto loop;
@@ -370,18 +438,18 @@ loop: // label for looping within the lexxer
 	
 	"dup" {
 		p_s->stk->i = (p_s->stk-1)->i;
-		p_s->stk++;
+		INCREMENT_STACK
 		goto loop;
 	}
 	
 	"over" {
 		p_s->stk->i = (p_s->stk-2)->i;
-		p_s->stk++;
+		INCREMENT_STACK
 		goto loop;
 	}
 	
 	"drop" {
-		p_s->stk--;
+		DECREMENT_STACK
 		goto loop;
 	}
 	
@@ -393,7 +461,7 @@ loop: // label for looping within the lexxer
 	}
 	
 	"if" {
-		p_s->stk--;
+		DECREMENT_STACK
 		if(p_s->stk->i==0){
 			YYCURSOR-=lex_if_else(&YYCURSOR, 0);
 		}
@@ -416,7 +484,7 @@ loop: // label for looping within the lexxer
 	}
 	
 	"until" {
-		p_s->stk--;
+		DECREMENT_STACK
 		if(p_s->stk->i==0){
 			YYCURSOR = *(p_s->cstk-1);
 		} else {
@@ -464,7 +532,7 @@ loop: // label for looping within the lexxer
 			return -1;
 		}
 		p_s->stk->i = p_s->vars[p_s->stk->i].i;
-		p_s->stk++;
+		INCREMENT_STACK
 
 		goto loop;
 	}
@@ -477,7 +545,7 @@ loop: // label for looping within the lexxer
 			return -1;
 		}
 		p_s->stk->v = &p_s->vars[p_s->stk->i];
-		p_s->stk++;
+		INCREMENT_STACK
 		goto loop;
 	}
 	
@@ -488,7 +556,7 @@ loop: // label for looping within the lexxer
 			// save value into variable
 			p_s->vars[p_s->stk->i].i = (p_s->stk-1)->i;
 			// pop stack
-			p_s->stk--;
+			DECREMENT_STACK
 		} else { // var does not exist
 			// create variable
 			p_s->stk->i = add_to(p_s->varList, start, (YYCURSOR - start));
@@ -499,7 +567,7 @@ loop: // label for looping within the lexxer
 			// save value into variable
 			p_s->vars[p_s->stk->i].i = (p_s->stk-1)->i;
 			// pop stack
-			p_s->stk--;
+			DECREMENT_STACK
 		}
 		goto loop;
 	}
@@ -528,7 +596,7 @@ loop: // label for looping within the lexxer
 		}
 		// save off return
 		p_s->stk->s = p_s->words[(p_s->stk+1)->i];
-		p_s->stk++;
+		INCREMENT_STACK
 		goto loop;
 	}
 	

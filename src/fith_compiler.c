@@ -63,6 +63,7 @@ typedef struct parser_s{
 	ScopeList * varList;
 	Data *      stk;
 	Data *      stk_start;
+	Data *      stk_end;
 	Data *      vars;
 	stringLitList * strList;
 	u8 **       cstk;
@@ -290,7 +291,20 @@ mallocf(u64 x)
 /* globals */
 
 //~ static FILE * outputFile,* typeProtoFile, * typesFile,
-	//~ * funcProtoFile, * globalsFile, * interfaceFile, * includesFile; 
+	//~ * funcProtoFile, * globalsFile, * interfaceFile, * includesFile;
+#define DECREMENT_STACK \
+if (p_s->stk>p_s->stk_start) \
+{ \
+	p_s->stk--; \
+} else \
+{ printf("stack underflow!!!\n"); }
+
+#define INCREMENT_STACK \
+if (p_s->stk<p_s->stk_end) \
+{ \
+	p_s->stk++; \
+} else \
+{ printf("stack overflow!!!\n"); }
 
 #include "../tool_output/fith_lex.c"
 //#include "../tool_output/fl_c_gram.c"
@@ -341,6 +355,7 @@ int main(int argc, char **argv)
 	p_s.buff_start = output_string;
 	p_s.stk = stack;
 	p_s.stk_start = stack;
+	p_s.stk_end = &stack[511];
 	p_s.vars = vars;
 	p_s.cstk = cstack;
 	p_s.words = words;

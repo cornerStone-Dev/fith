@@ -3,7 +3,7 @@ all: bin tool_output bin/fith
 
 #tool_output/fith_gram.c 
 bin/fith: src/fith_compiler.c tool_output/fith_lex.c
-	time gcc -O2 -s -o bin/fith src/fith_compiler.c -Wall
+	gcc -O2 -s -o bin/fith src/fith_compiler.c -Wall
 	size bin/fith
 
 #~ tool_output/fith_gram.c: tool/lemon src/fith_gram.y src/fcompile_gram.y src/ignore_gram.y
