@@ -1,5 +1,5 @@
 
-all: bin tool_output bin/fith
+all: bin tool_output bin/fith fith_src fith_src/script.fith
 
 #tool_output/fith_gram.c 
 bin/fith: src/fith_compiler.c tool_output/fith_lex.c
@@ -32,6 +32,12 @@ bin:
 
 tool_output:
 	mkdir tool_output
+
+fith_src:
+	mkdir fith_src
+
+fith_src/script.fith:
+	touch fith_src/script.fith
 
 clean:
 	rm -f bin/flct
