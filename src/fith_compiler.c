@@ -372,7 +372,7 @@ int main(int argc, char **argv)
 	//ParseInit(pEngine, &p_s);
 	
 	/* open current directory */
-	d = opendir("fl_src");
+	d = opendir("fith_src");
 	if (d==0)
 	{
 		//printf("NO DIR!!!\n");
@@ -384,7 +384,7 @@ int main(int argc, char **argv)
 	while ( ((dir = readdir(d)) != NULL) /*&& (strstr(dir->d_name, ".c")!=0)*/ )
 	{
 		//printf("Got in\n");
-		if ( (strstr(dir->d_name, ".fl.c")!=0) ) {
+		if ( (strstr(dir->d_name, ".fith")!=0) ) {
 		//printf("%s\n", dir->d_name);
 		//~ p_s.line_num=1;
 		//~ output = (uint8_t *)stpcpy((char *)output, "/* src/");
@@ -398,7 +398,7 @@ int main(int argc, char **argv)
 		
 		p_s.out = output;
 		
-		sprintf((char *)p_s.file_name_buff, "fl_src/%s", dir->d_name);
+		sprintf((char *)p_s.file_name_buff, "fith_src/%s", dir->d_name);
 
 		pFile = fopen ( (char *)p_s.file_name_buff, "rb" );
 		if (pFile==NULL) {fputs ("File error, cannot open source file",stderr); exit (1);}
