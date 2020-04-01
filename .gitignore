@@ -1,0 +1,7 @@
+# ignored files
+bin/
+fl_src/
+test/
+tool/
+tool_output/
+*.geany
