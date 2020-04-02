@@ -36,6 +36,7 @@
 	function_call = [a-zA-Z_][a-zA-Z_0-9?]*;
 	function_call_addr = [a-zA-Z_][a-zA-Z_0-9?]*"@";
 	function_definition = [a-zA-Z_][a-zA-Z_0-9?]* ":";
+	//query =  "SQL3_QUERY_" [a-zA-Z_0-9]*;
 	var = "$" function_call; // push value on stack, if exists
 	var_assign = "=$" function_call; // pop top of stack and assign to value, create variable 
 	var_addr = "@" function_call; // push address on stack
@@ -43,6 +44,36 @@
 	
 */                                   // end of re2c block
 
+
+static int lex_options(/*const*/ u8 * YYCURSOR) // YYCURSOR is defined as a function parameter
+{                                    //
+	u8 * YYMARKER;    // YYMARKER is defined as a local variable
+	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
+	/*const*/ //u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
+	/*const*/ u8 * start;
+	
+	//YYCURSOR = *YYCURSOR_p;
+
+//loop: // label for looping within the lexxer
+	start = YYCURSOR;
+
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { printf("Invalid Option: %s\n",start); return 0; } //   default rule with its semantic action
+	[\x00] { return 0; }             // EOF rule with null sentinal
+	
+	"-repl" {
+		return 1;
+	}
+	
+	[a-zA-Z_/0-9-]+ ".fith" {
+		return 2;
+	}
+	
+	*/                               // end of re2c block
+}
 
 static int lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else) // YYCURSOR is defined as a function parameter
 {                                    //

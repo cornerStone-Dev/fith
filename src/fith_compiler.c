@@ -82,7 +82,7 @@ typedef struct parser_s{
 	u8          is_fork_parent;
 	u8          is_struct;
 	u8          is_union;
-	u8          is_enum;
+	u8          is_fp;
 	u8          is_main;
 	u8          is_custom_type;
 	u8          inside_function;
@@ -329,6 +329,7 @@ int main(int argc, char **argv)
 	//void *pEngine;     /* The LEMON-generated LALR(1) parser */
 	//yyParser sEngine;  /* Space to hold the Lemon-generated Parser object */
 	unsigned char output_string[65536] = {0};
+	unsigned char strBuff[4096] = {0};
 	Data stack[512]={0};
 	Data vars[512]={0};
 	//unsigned char file_name_buff[512] = {0};
@@ -342,12 +343,13 @@ int main(int argc, char **argv)
 	ScopeList varList={0};
 	stringLitList strList={0};
 	int tmp_token;
+	u32 x;
 	ParserState p_s = {0};
 	FILE * pFile;
 	size_t lSize;
 	unsigned char * buffer;
 	size_t result;
-	DIR *d;
+	DIR *d=0;
 	struct dirent *dir;
 	p_s.scopeList = &scopeList;
 	p_s.varList = &varList;
@@ -380,6 +382,89 @@ int main(int argc, char **argv)
 		dirName_p = (u8*)stpcpy((char *)dirName_p, "/");
 	} else {
 		dirName_p = (u8*)stpcpy((char *)dirName, DEFAULT_DIR);
+	}
+	u32 i=1;
+	if (argc > 1)
+	{
+		for (; i<argc; i++)
+		{
+			x = lex_options((u8 *)argv[i]);
+			
+			switch (x){
+				case 0:
+				
+				break;
+				case 1:
+				while (1)
+				{
+					printf("fith-> ");
+					if (fgets ((char *)strBuff, 4096, stdin) != NULL )
+					{
+						if (!(strncmp((const char *)strBuff, ".exit", 5)))
+						{
+							return 0;
+						}
+						if (!(strncmp((const char *)strBuff, ".fp", 3)))
+						{
+							p_s.is_fp=1;
+							continue;
+						}
+						if (!(strncmp((const char *)strBuff, ".int", 4)))
+						{
+							p_s.is_fp=0;
+							continue;
+						}
+						if (!(strncmp((const char *)strBuff, ".dump", 5)))
+						{
+							*(p_s.buff_start) = '\000';
+							printf("%s",output_string);
+							continue;
+						}
+						if (!(strncmp((const char *)strBuff, ".save", 5)))
+						{
+							*(p_s.buff_start) = '\000';
+							pFile = fopen ( "session.fith", "w" );
+							if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
+							fwrite (output_string,
+								sizeof(char),
+								p_s.buff_start-output_string,
+								pFile);
+							fflush (pFile);
+							fclose (pFile);
+							printf("session.fith saved\n");
+							continue;
+						}
+						data = p_s.buff_start;
+						p_s.buff_start = (u8*)stpcpy((char *)p_s.buff_start, (const char *)strBuff);
+						if(p_s.is_fp)
+						{
+							*(p_s.buff_start) = 'f';
+							*(p_s.buff_start+1) = '.';
+							*(p_s.buff_start+2) = '\000';
+						} else {
+							*(p_s.buff_start) = '.';
+							*(p_s.buff_start+1) = '\000';
+						}
+						do {
+							tmp_token = lex(data, &token, &p_s.line_num, &p_s);
+						} while (tmp_token != 0);
+					}
+				}
+				break;
+				case 2:
+				printf("target file: %s\n",argv[i]);
+				p_s.is_def=1;
+				sprintf((char *)p_s.file_name_buff, "%s", argv[i]);
+				goto one_file;
+				one_file_return:
+				break;
+			}
+		}
+	}
+	
+	if (p_s.is_def)
+	{
+		return 0;
 	}
 	
 	/** Set up parser **/
@@ -415,8 +500,10 @@ int main(int argc, char **argv)
 		
 		sprintf((char *)p_s.file_name_buff, "fith_src/%s", dir->d_name);
 
+		one_file:
+		
 		pFile = fopen ( (char *)p_s.file_name_buff, "rb" );
-		if (pFile==NULL) {fputs ("File error, cannot open source file",stderr); exit (1);}
+		if (pFile==NULL) {fputs ("File error, cannot open source file\n",stderr); exit (1);}
 		
 		
 		
@@ -427,12 +514,12 @@ int main(int argc, char **argv)
 
 		// allocate memory to contain the whole file:
 		buffer = (unsigned char*) malloc (sizeof(char)*lSize+1);
-		if (buffer == NULL) {fputs ("Memory error",stderr); exit (2);}
+		if (buffer == NULL) {fputs ("Memory error\n",stderr); exit (2);}
 		data = buffer;
 
 		// copy the file into the buffer:
 		result = fread (buffer,1,lSize,pFile);
-		if (result != lSize) {fputs ("Reading error",stderr); exit (3);}
+		if (result != lSize) {fputs ("Reading error\n",stderr); exit (3);}
 		
 		/* null terminate buffer */
 		buffer[lSize]=0;
@@ -453,6 +540,10 @@ int main(int argc, char **argv)
 		fclose (pFile);
 		/* free memory that stored copy of file */
 		free (buffer);
+		}
+		if (p_s.is_def)
+		{
+			goto one_file_return;
 		}
 	}
 	

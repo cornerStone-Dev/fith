@@ -5,3 +5,4 @@ test/
 tool/
 tool_output/
 *.geany
+*.fith
