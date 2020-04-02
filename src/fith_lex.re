@@ -460,6 +460,14 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	"rot" {
+		p_s->stk->i = (p_s->stk-3)->i;
+		(p_s->stk-3)->i = (p_s->stk-2)->i;
+		(p_s->stk-2)->i = (p_s->stk-1)->i;
+		(p_s->stk-1)->i = p_s->stk->i;
+		goto loop;
+	}
+
 	"if" {
 		DECREMENT_STACK
 		if(p_s->stk->i==0){
