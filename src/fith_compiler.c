@@ -329,6 +329,7 @@ int main(int argc, char **argv)
 	//void *pEngine;     /* The LEMON-generated LALR(1) parser */
 	//yyParser sEngine;  /* Space to hold the Lemon-generated Parser object */
 	unsigned char output_string[65536] = {0};
+	unsigned char strBuff[4096] = {0};
 	Data stack[512]={0};
 	Data vars[512]={0};
 	//unsigned char file_name_buff[512] = {0};
@@ -342,6 +343,7 @@ int main(int argc, char **argv)
 	ScopeList varList={0};
 	stringLitList strList={0};
 	int tmp_token;
+	u32 x;
 	ParserState p_s = {0};
 	FILE * pFile;
 	size_t lSize;
@@ -380,6 +382,55 @@ int main(int argc, char **argv)
 		dirName_p = (u8*)stpcpy((char *)dirName_p, "/");
 	} else {
 		dirName_p = (u8*)stpcpy((char *)dirName, DEFAULT_DIR);
+	}
+	
+	if (argc > 1)
+	{
+		for (u32 i=1; i<argc; i++)
+		{
+			x = lex_options((u8 *)argv[i]);
+			
+			switch (x){
+				case 0:
+				
+				break;
+				case 1:
+				while (1)
+				{
+					printf("fith->");
+					if (fgets ((char *)strBuff, 4096, stdin) != NULL )
+					{
+						if (!(strncmp((const char *)strBuff, ".exit", 5)))
+						{
+							return 0;
+						}
+						if (!(strncmp((const char *)strBuff, ".dump", 5)))
+						{
+							printf("%s",output_string);
+							continue;
+						}
+						if (!(strncmp((const char *)strBuff, ".save", 5)))
+						{
+							pFile = fopen ( "session.fith", "w" );
+							if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
+							fwrite (output_string,
+								sizeof(char),
+								p_s.buff_start-output_string,
+								pFile);
+							fflush (pFile);
+							fclose (pFile);
+							printf("session.fith saved\n");
+							continue;
+						}
+						data = p_s.buff_start;
+						p_s.buff_start = (u8*)stpcpy((char *)p_s.buff_start, (const char *)strBuff);
+						do {
+							tmp_token = lex(data, &token, &p_s.line_num, &p_s);
+						} while (tmp_token != 0);
+					}
+				}
+			}
+		}
 	}
 	
 	/** Set up parser **/
