@@ -397,7 +397,7 @@ int main(int argc, char **argv)
 				case 1:
 				while (1)
 				{
-					printf("fith->");
+					printf("fith-> ");
 					if (fgets ((char *)strBuff, 4096, stdin) != NULL )
 					{
 						if (!(strncmp((const char *)strBuff, ".exit", 5)))
