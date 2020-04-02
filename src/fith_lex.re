@@ -68,6 +68,10 @@ static int lex_options(/*const*/ u8 * YYCURSOR) // YYCURSOR is defined as a func
 		return 1;
 	}
 	
+	[a-zA-Z_/0-9-]+ ".fith" {
+		return 2;
+	}
+	
 	*/                               // end of re2c block
 }
 

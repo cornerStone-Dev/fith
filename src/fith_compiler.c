@@ -349,7 +349,7 @@ int main(int argc, char **argv)
 	size_t lSize;
 	unsigned char * buffer;
 	size_t result;
-	DIR *d;
+	DIR *d=0;
 	struct dirent *dir;
 	p_s.scopeList = &scopeList;
 	p_s.varList = &varList;
@@ -383,10 +383,10 @@ int main(int argc, char **argv)
 	} else {
 		dirName_p = (u8*)stpcpy((char *)dirName, DEFAULT_DIR);
 	}
-	
+	u32 i=1;
 	if (argc > 1)
 	{
-		for (u32 i=1; i<argc; i++)
+		for (; i<argc; i++)
 		{
 			x = lex_options((u8 *)argv[i]);
 			
@@ -429,8 +429,21 @@ int main(int argc, char **argv)
 						} while (tmp_token != 0);
 					}
 				}
+				break;
+				case 2:
+				printf("target file: %s\n",argv[i]);
+				p_s.is_def=1;
+				sprintf((char *)p_s.file_name_buff, "%s", argv[i]);
+				goto one_file;
+				one_file_return:
+				break;
 			}
 		}
+	}
+	
+	if (p_s.is_def)
+	{
+		return 0;
 	}
 	
 	/** Set up parser **/
@@ -466,6 +479,8 @@ int main(int argc, char **argv)
 		
 		sprintf((char *)p_s.file_name_buff, "fith_src/%s", dir->d_name);
 
+		one_file:
+		
 		pFile = fopen ( (char *)p_s.file_name_buff, "rb" );
 		if (pFile==NULL) {fputs ("File error, cannot open source file",stderr); exit (1);}
 		
@@ -504,6 +519,10 @@ int main(int argc, char **argv)
 		fclose (pFile);
 		/* free memory that stored copy of file */
 		free (buffer);
+		}
+		if (p_s.is_def)
+		{
+			goto one_file_return;
 		}
 	}
 	
