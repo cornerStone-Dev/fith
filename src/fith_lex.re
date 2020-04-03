@@ -484,6 +484,11 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	"clear" {
+		p_s->stk=p_s->stk_start;
+		goto loop;
+	}
+	
 	"swap" {
 		p_s->stk->i = (p_s->stk-2)->i;
 		(p_s->stk-2)->i = (p_s->stk-1)->i;
