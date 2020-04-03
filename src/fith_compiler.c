@@ -68,10 +68,11 @@ typedef struct parser_s{
 	stringLitList * strList;
 	u8 **       cstk;
 	u8 **       words;
+	u8 *        buff;
 	u8 *        buff_start;
 	u8 *        out;
-	u8 *        decl_end;
-	u8 *        funcProto_end;
+	u8 *        yycur;
+	u8 *        step_spot;
 	struct      timespec time;
 	u32         num_dots;
 	u32         line_num;
@@ -83,7 +84,7 @@ typedef struct parser_s{
 	u8          is_struct;
 	u8          is_union;
 	u8          is_fp;
-	u8          is_main;
+	u8          is_step;
 	u8          is_custom_type;
 	u8          inside_function;
 	u8          printed_error;
@@ -355,6 +356,7 @@ int main(int argc, char **argv)
 	p_s.varList = &varList;
 	p_s.out = output;
 	p_s.buff_start = output_string;
+	p_s.buff = output_string;
 	p_s.stk = stack;
 	p_s.stk_start = stack;
 	p_s.stk_end = &stack[511];
@@ -459,6 +461,7 @@ int main(int argc, char **argv)
 				one_file_return:
 				break;
 			}
+			p_s.buff_start = output_string;
 		}
 	}
 	
@@ -486,7 +489,7 @@ int main(int argc, char **argv)
 		//printf("Got in\n");
 		if ( (strstr(dir->d_name, ".fith")!=0) ) {
 		//printf("%s\n", dir->d_name);
-		//~ p_s.line_num=1;
+		p_s.line_num=1;
 		//~ output = (uint8_t *)stpcpy((char *)output, "/* src/");
 		//~ output = (uint8_t *)stpcpy((char *)output, dir->d_name);
 		//~ output = (uint8_t *)stpcpy((char *)output, " */\n");

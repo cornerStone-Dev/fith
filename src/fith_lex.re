@@ -75,6 +75,33 @@ static int lex_options(/*const*/ u8 * YYCURSOR) // YYCURSOR is defined as a func
 	*/                               // end of re2c block
 }
 
+static int lex_wsp(/*const*/ u8 ** YYCURSOR_p) // YYCURSOR is defined as a function parameter
+{                                    //
+	//u8 * YYMARKER;    // YYMARKER is defined as a local variable
+	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
+	/*const*/ u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
+	/*const*/ //u8 * start;
+	
+	YYCURSOR = *YYCURSOR_p;
+
+loop: // label for looping within the lexxer
+	//start = YYCURSOR;
+
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { /*start =YYCURSOR;*/ *YYCURSOR_p = YYCURSOR; return 1; }//   default rule with its semantic action
+	[\x00] { return 1; }             // EOF rule with null sentinal
+	
+	
+	wsp {
+		goto loop;
+	}
+
+	*/                               // end of re2c block
+}
+
 static int lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else) // YYCURSOR is defined as a function parameter
 {                                    //
 	u8 * YYMARKER;    // YYMARKER is defined as a local variable
@@ -153,7 +180,7 @@ loop: // label for looping within the lexxer
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
-	* { start =YYCURSOR; goto loop; }//   default rule with its semantic action
+	* { goto loop; } //   default rule with its semantic action start =YYCURSOR;
 	[\x00] { return 0; }             // EOF rule with null sentinal
 	
 	wsp {
@@ -566,6 +593,117 @@ loop: // label for looping within the lexxer
 	
 	"exit" {
 		_Exit((p_s->stk-1)->i);
+	}
+	
+	"debug" {
+		u8 * start_of_line;
+		u8 * end_of_line;
+		u8 tmp, tmp2;
+		
+		if (p_s->yycur==0)
+		{
+			p_s->yycur=YYCURSOR;
+		}
+		
+		if (p_s->is_step)
+		{
+			// copy back source
+			strncpy((char *)p_s->step_spot, (const char *)p_s->file_name_buff, 11);
+			p_s->yycur=p_s->step_spot;
+			p_s->is_step=0;
+		}
+		
+		start_of_line=p_s->yycur;
+		end_of_line=p_s->yycur;
+		tmp2 = *p_s->yycur;
+		*p_s->yycur=')';
+		
+		if (*line_num>1) {
+			while (*start_of_line!='\n'){
+				start_of_line--;
+			}
+			start_of_line++;
+		}
+		while (*end_of_line!='\n'){
+				end_of_line++;
+		}
+		end_of_line++;
+		tmp = *end_of_line;
+		*end_of_line=0;
+		
+		printf("%s", start_of_line);
+		*end_of_line=tmp;
+		*p_s->yycur=tmp2;
+		
+		while (1)
+		{
+			printf("debug:: ");
+			if (fgets ((char *)p_s->file_name_buff, 512, stdin) != NULL )
+			{
+				if (!(strncmp((const char *)p_s->file_name_buff, ".dump", 5)))
+				{
+					*(p_s->buff) = '\000';
+					printf("%s",p_s->buff_start);
+					continue;
+				}
+				if (!(strncmp((const char *)p_s->file_name_buff, ".exit", 5)))
+				{
+					return 0;
+				}
+				if (!(strncmp((const char *)p_s->file_name_buff, ".fp", 3)))
+				{
+					p_s->is_fp=1;
+					continue;
+				}
+				if (!(strncmp((const char *)p_s->file_name_buff, ".int", 4)))
+				{
+					p_s->is_fp=0;
+					continue;
+				}
+				if (!(strncmp((const char *)p_s->file_name_buff, ".resume", 7)))
+				{
+					YYCURSOR=p_s->yycur;
+					p_s->yycur=0;
+					goto loop;
+				}
+				if (!(strncmp((const char *)p_s->file_name_buff, ".step", 5)))
+				{
+					//printf("yycur_before::%c%c%c%c\n",*p_s->yycur,*(p_s->yycur+1),*(p_s->yycur+2),*(p_s->yycur+3));
+					p_s->yycur-=lex_wsp(&p_s->yycur);
+					//printf("yycur_before::%c%c%c%c\n",*p_s->yycur,*(p_s->yycur+1),*(p_s->yycur+2),*(p_s->yycur+3));
+					// p_s->yycur pointing at code
+					p_s->step_spot=p_s->yycur;
+					YYCURSOR = p_s->yycur;
+					while ( (*p_s->step_spot !=' ') && (*p_s->step_spot !='\n') && (*p_s->step_spot !='(') && (*p_s->step_spot !='\\') ) {
+						p_s->step_spot++;
+					}
+					// p_s->step_spot pointing at a wsp
+					// copy source off
+					strncpy((char *)p_s->file_name_buff, (const char *)p_s->step_spot, 11);
+					// overwrite source with loop back to debug
+					//stpcpy((char *)p_s->step_spot, " debug");
+					if(p_s->is_fp)
+					{
+						stpcpy((char *)p_s->step_spot, " f. debug ");
+					} else {
+						stpcpy((char *)p_s->step_spot, " . debug ");
+					}
+					//printf("YYCURSOR::%s\n",YYCURSOR);
+					p_s->is_step=1;
+					goto loop;
+				}
+				p_s->out = p_s->buff;
+				p_s->buff = (u8*)stpcpy((char *)p_s->buff, (const char *)p_s->file_name_buff);
+				if(p_s->is_fp)
+				{
+					stpcpy((char *)p_s->buff, "f. debug");
+				} else {
+					stpcpy((char *)p_s->buff, ". debug");
+				}
+				YYCURSOR = p_s->out;
+				goto loop;
+			}
+		}
 	}
 	
 	var {
