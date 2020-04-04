@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/socket.h>
 #include <time.h>
 
 #include "std_types.h"
@@ -30,6 +31,7 @@ typedef union boken {
 	s64    i;
 	f64    d;
 	Data * v;
+	s32    fd[2];
 } Data;
 
 typedef struct Xoken {
@@ -107,16 +109,15 @@ typedef struct fbeeList {
 blockList bl;
 blockList blf;
 
-//#include "../tool_output/fl_c_gram.h"
 /* function prototypes */
 static s32
 add_to(ScopeList * restrict str_l, u8 * restrict s, u32  l);
 static s32
 is_within(ScopeList * restrict str_l, u8 * restrict s, u32  l);
-static u8 *
-indx_within(ScopeList * restrict str_l, u32  indx, u8 * restrict output);
-static void
-enter_scope(ScopeList * restrict scope_l);
+//~ static u8 *
+//~ indx_within(ScopeList * restrict str_l, u32  indx, u8 * restrict output);
+//~ static void
+//~ enter_scope(ScopeList * restrict scope_l);
 static inline void
 leave_scope(ScopeList * restrict scope_l);
 static u32
@@ -133,34 +134,34 @@ base64encode(u8 * output, u32 input);
 static u32 
 safe_atol_64(const u8 ** strp);
 
-static void * get4096blockf(void)
-{
-	u8 *p;
-	//printf("get4096blockf\n");
-	if (blf.index==0)
-	{
-		p = malloc((128*1024)+128);
-		if (p)
-		{
-			u64 val = (u64)p;
-			// align on 64 byte boundary
-			val+=63;
-			val&=0xFFFFFFFFFFFFFFC0;
-			// move to offset if i,  this is to make the allocation
-			// 64 byte aligned, but hide the mallocf data
-			val+=63;
-			p = (u8 *)val;
-			for (s32 x=0; x<(128*1024); x+=4096)
-			{
-				blf.blk[x/4096] = (void *)p;
-				p+=4096;
-				blf.index++;
-			}
-		}
-	}
-	blf.index--;
-	return blf.blk[blf.index];
-}
+//~ static void * get4096blockf(void)
+//~ {
+	//~ u8 *p;
+	//~ //printf("get4096blockf\n");
+	//~ if (blf.index==0)
+	//~ {
+		//~ p = malloc((128*1024)+128);
+		//~ if (p)
+		//~ {
+			//~ u64 val = (u64)p;
+			//~ // align on 64 byte boundary
+			//~ val+=63;
+			//~ val&=0xFFFFFFFFFFFFFFC0;
+			//~ // move to offset if i,  this is to make the allocation
+			//~ // 64 byte aligned, but hide the mallocf data
+			//~ val+=63;
+			//~ p = (u8 *)val;
+			//~ for (s32 x=0; x<(128*1024); x+=4096)
+			//~ {
+				//~ blf.blk[x/4096] = (void *)p;
+				//~ p+=4096;
+				//~ blf.index++;
+			//~ }
+		//~ }
+	//~ }
+	//~ blf.index--;
+	//~ return blf.blk[blf.index];
+//~ }
 
 static void * get4096block(void)
 {
@@ -189,99 +190,99 @@ static void * get4096block(void)
 	return bl.blk[bl.index];
 }
 
-static void freefx(void *p, u64 sz)
-{
-	if (fl[sz].blk[(fl[sz].index/512)]==0)
-	{
-		fl[sz].blk[(fl[sz].index/512)] = get4096block();
-	}
-	fl[sz].blk[(fl[sz].index/512)][fl[sz].index%512]= (u64)p;
-	fl[sz].index++;
-}
+//~ static void freefx(void *p, u64 sz)
+//~ {
+	//~ if (fl[sz].blk[(fl[sz].index/512)]==0)
+	//~ {
+		//~ fl[sz].blk[(fl[sz].index/512)] = get4096block();
+	//~ }
+	//~ fl[sz].blk[(fl[sz].index/512)][fl[sz].index%512]= (u64)p;
+	//~ fl[sz].index++;
+//~ }
 
-static void freef(void *p)
-{
-	u8 *dp = p;
-	u8 v = *(dp-1);
-	if (v>6)
-	{
-		//printf("fp:%016lX\n", (u64)dp-16);
-		free((dp-16));
-	} else {
-		freefx(p, v);
-	}
-}
+//~ static void freef(void *p)
+//~ {
+	//~ u8 *dp = p;
+	//~ u8 v = *(dp-1);
+	//~ if (v>6)
+	//~ {
+		//~ //printf("fp:%016lX\n", (u64)dp-16);
+		//~ free((dp-16));
+	//~ } else {
+		//~ freefx(p, v);
+	//~ }
+//~ }
 
-static void freedomx(u64 x, u64 sz)
-{
-	u8 *p= get4096blockf();
+//~ static void freedomx(u64 x, u64 sz)
+//~ {
+	//~ u8 *p= get4096blockf();
 	
-	for (s32 z=0; z<4096; z+=x)
-	{
-		p[z]=sz;
-		freefx((&p[z]+1), sz);
-	}
-}
+	//~ for (s32 z=0; z<4096; z+=x)
+	//~ {
+		//~ p[z]=sz;
+		//~ freefx((&p[z]+1), sz);
+	//~ }
+//~ }
 
 
-static u8 * fmallocx(u64 x, u64 sz)
-{
-	if (fl[sz].index==0)
-	{
-		freedomx(x, sz);
-	}
-	fl[sz].index--;
-	return (u8 *) fl[sz].blk[(fl[sz].index/512)][fl[sz].index%512];
-}
+//~ static u8 * fmallocx(u64 x, u64 sz)
+//~ {
+	//~ if (fl[sz].index==0)
+	//~ {
+		//~ freedomx(x, sz);
+	//~ }
+	//~ fl[sz].index--;
+	//~ return (u8 *) fl[sz].blk[(fl[sz].index/512)][fl[sz].index%512];
+//~ }
 
-static void *
-mallocf(u64 x)
-{
-	u8 * p;
-	if (x<=511)
-	{
-		if (x<=127)
-		{
-			if (x<=63)
-			{
-				p = fmallocx(64,0);
-			} else
-			{
-				p = fmallocx(128,1);
-			}
-		} else if(x<=255)
-		{
-			p = fmallocx(256,2);
-		} else
-		{
-			p = fmallocx(512,3);
-		}
-	} else if (x<=2047)
-	{
-		if (x<=1023)
-		{
-			p = fmallocx(1024,4);
-		} else
-		{
-			p = fmallocx(2048,5);
-		}
-	} else if(x<=4095)
-	{
-		p = fmallocx(4096,6);
-	} else
-	{
-		//printf("malloc fall over\n");
-		p = malloc(x+16);
-		//printf("mp:%016lX\n", (u64)p);
-		if (p!=0)
-		{
-			p+=15;
-			*p = 7;
-			p++;
-		}
-	}
-	return p;
-}
+//~ static void *
+//~ mallocf(u64 x)
+//~ {
+	//~ u8 * p;
+	//~ if (x<=511)
+	//~ {
+		//~ if (x<=127)
+		//~ {
+			//~ if (x<=63)
+			//~ {
+				//~ p = fmallocx(64,0);
+			//~ } else
+			//~ {
+				//~ p = fmallocx(128,1);
+			//~ }
+		//~ } else if(x<=255)
+		//~ {
+			//~ p = fmallocx(256,2);
+		//~ } else
+		//~ {
+			//~ p = fmallocx(512,3);
+		//~ }
+	//~ } else if (x<=2047)
+	//~ {
+		//~ if (x<=1023)
+		//~ {
+			//~ p = fmallocx(1024,4);
+		//~ } else
+		//~ {
+			//~ p = fmallocx(2048,5);
+		//~ }
+	//~ } else if(x<=4095)
+	//~ {
+		//~ p = fmallocx(4096,6);
+	//~ } else
+	//~ {
+		//~ //printf("malloc fall over\n");
+		//~ p = malloc(x+16);
+		//~ //printf("mp:%016lX\n", (u64)p);
+		//~ if (p!=0)
+		//~ {
+			//~ p+=15;
+			//~ *p = 7;
+			//~ p++;
+		//~ }
+	//~ }
+	//~ return p;
+//~ }
 
 //~ static u8 *
 //~ add_restrict(u8 ** sp, u32 l, u8 * out, u8 * proto_end);
@@ -331,7 +332,7 @@ int main(int argc, char **argv)
 	//yyParser sEngine;  /* Space to hold the Lemon-generated Parser object */
 	unsigned char output_string[65536] = {0};
 	unsigned char strBuff[4096] = {0};
-	Data stack[512]={0};
+	Data stack[384]={0};
 	Data vars[512]={0};
 	//unsigned char file_name_buff[512] = {0};
 	unsigned char * output = output_string;
@@ -359,7 +360,7 @@ int main(int argc, char **argv)
 	p_s.buff = output_string;
 	p_s.stk = stack;
 	p_s.stk_start = stack;
-	p_s.stk_end = &stack[511];
+	p_s.stk_end = &stack[374];
 	p_s.vars = vars;
 	p_s.cstk = cstack;
 	p_s.words = words;
@@ -394,7 +395,7 @@ int main(int argc, char **argv)
 			
 			switch (x){
 				case 0:
-				
+				return 0;
 				break;
 				case 1:
 				while (1)
@@ -556,18 +557,6 @@ int main(int argc, char **argv)
 	/* flush file out of cache and close all files */
 	//~ fflush (outputFile); 
 	//~ fclose (outputFile);
-	//~ fflush (typeProtoFile); 
-	//~ fclose (typeProtoFile);
-	//~ fflush (typesFile); 
-	//~ fclose (typesFile);
-	//~ fflush (funcProtoFile); 
-	//~ fclose (funcProtoFile);
-	//~ fflush (globalsFile); 
-	//~ fclose (globalsFile);
-	//~ fflush (interfaceFile); 
-	//~ fclose (interfaceFile);
-	//~ fflush (includesFile); 
-	//~ fclose (includesFile);
 	
 	
 	/*** De-comission parser * */
@@ -665,53 +654,53 @@ is_within(ScopeList * restrict str_l, u8 * restrict s, u32  l)
 }
 
 /* search type table at index */
-static u8 *
-indx_within(ScopeList * restrict str_l, u32 indx, u8 * restrict output)
-{
-	u8 * cursor = str_l->cursor_stack[str_l->scopeIdx]-1;
-	s32  idx = str_l->item_count_stack[str_l->scopeIdx];
-	u8   len=0;
+//~ static u8 *
+//~ indx_within(ScopeList * restrict str_l, u32 indx, u8 * restrict output)
+//~ {
+	//~ u8 * cursor = str_l->cursor_stack[str_l->scopeIdx]-1;
+	//~ s32  idx = str_l->item_count_stack[str_l->scopeIdx];
+	//~ u8   len=0;
 	
-	if (indx > (idx-1) ) {
-		return output;
-	}
+	//~ if (indx > (idx-1) ) {
+		//~ return output;
+	//~ }
 	
-	/* one comparision */
-	while ( idx > 0 )
-	{
-		len = (*cursor);
-		idx--;
-		if ( idx != indx )
-		{
-			/* skip to next one */
-			cursor = cursor-len-1;
-			continue;
-		}
-		break;
-	}
-	cursor-=len;
-	/* copy out string */
-	for (s32 i=0;i<len;i++)
-	{
-		*output = *cursor;
-		cursor++;
-		output++;
-	}
+	//~ /* one comparision */
+	//~ while ( idx > 0 )
+	//~ {
+		//~ len = (*cursor);
+		//~ idx--;
+		//~ if ( idx != indx )
+		//~ {
+			//~ /* skip to next one */
+			//~ cursor = cursor-len-1;
+			//~ continue;
+		//~ }
+		//~ break;
+	//~ }
+	//~ cursor-=len;
+	//~ /* copy out string */
+	//~ for (s32 i=0;i<len;i++)
+	//~ {
+		//~ *output = *cursor;
+		//~ cursor++;
+		//~ output++;
+	//~ }
 	
-	return output;
-}
+	//~ return output;
+//~ }
 
-static void
-enter_scope(ScopeList * restrict scope_l)
-{
-	u32 idx;
-	scope_l->scopeIdx++;
-	idx = scope_l->scopeIdx;
-	/* copy end of previous scope to new scope */
-	scope_l->item_count_stack[idx] = scope_l->item_count_stack[idx-1];
-	scope_l->cursor_stack[idx] = scope_l->cursor_stack[idx-1];
-	//printf("entering scope!%d\n",scope_l->scopeIdx);
-}
+//~ static void
+//~ enter_scope(ScopeList * restrict scope_l)
+//~ {
+	//~ u32 idx;
+	//~ scope_l->scopeIdx++;
+	//~ idx = scope_l->scopeIdx;
+	//~ /* copy end of previous scope to new scope */
+	//~ scope_l->item_count_stack[idx] = scope_l->item_count_stack[idx-1];
+	//~ scope_l->cursor_stack[idx] = scope_l->cursor_stack[idx-1];
+	//~ //printf("entering scope!%d\n",scope_l->scopeIdx);
+//~ }
 
 static inline void
 leave_scope(ScopeList * restrict scope_l)

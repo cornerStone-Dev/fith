@@ -1,4 +1,4 @@
-/* florida_c compiler */
+/* fith compiler */
 /* PUBLIC DOMAIN */
 
 /*!max:re2c*/                        // directive that defines YYMAXFILL (unused)
@@ -61,10 +61,10 @@ static int lex_options(/*const*/ u8 * YYCURSOR) // YYCURSOR is defined as a func
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
-	* { printf("Invalid Option: %s\n",start); return 0; } //   default rule with its semantic action
+	* { printf("Invalid Option: %s, Operation aborted\n",start); return 0; } //   default rule with its semantic action
 	[\x00] { return 0; }             // EOF rule with null sentinal
 	
-	"-repl" {
+	"--repl" {
 		return 1;
 	}
 	
@@ -72,33 +72,6 @@ static int lex_options(/*const*/ u8 * YYCURSOR) // YYCURSOR is defined as a func
 		return 2;
 	}
 	
-	*/                               // end of re2c block
-}
-
-static int lex_wsp(/*const*/ u8 ** YYCURSOR_p) // YYCURSOR is defined as a function parameter
-{                                    //
-	//u8 * YYMARKER;    // YYMARKER is defined as a local variable
-	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
-	/*const*/ u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
-	/*const*/ //u8 * start;
-	
-	YYCURSOR = *YYCURSOR_p;
-
-loop: // label for looping within the lexxer
-	//start = YYCURSOR;
-
-	/*!re2c                          // start of re2c block **/
-	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
-	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
-									 //
-	* { /*start =YYCURSOR;*/ *YYCURSOR_p = YYCURSOR; return 1; }//   default rule with its semantic action
-	[\x00] { return 1; }             // EOF rule with null sentinal
-	
-	
-	wsp {
-		goto loop;
-	}
-
 	*/                               // end of re2c block
 }
 
@@ -615,6 +588,62 @@ loop: // label for looping within the lexxer
 		_Exit((p_s->stk-1)->i);
 	}
 	
+	"malloc" {
+		(p_s->stk-1)->s= malloc((p_s->stk-1)->i);
+		if ((p_s->stk-1)->s == 0 )
+		{
+			printf("malloc error!!!\n");
+		}
+		goto loop;
+	}
+	
+	"free" {
+		DECREMENT_STACK
+		free(p_s->stk->s);
+		goto loop;
+	}
+	
+	"chan" {
+		p_s->stk->i = socketpair(AF_UNIX, SOCK_STREAM, 0, (p_s->stk+2)->fd);
+		if (p_s->stk->i < 0)
+		{
+			printf("socketpair error!!!\n");
+		} else {
+			p_s->stk->i = (p_s->stk+2)->fd[0];
+			(p_s->stk+1)->i = (p_s->stk+2)->fd[1];
+			INCREMENT_STACK
+			INCREMENT_STACK
+		}
+		goto loop;
+	}
+	
+	"reads" { // (0fd, 1pBuf, 2sizeof(pBuf))
+		DECREMENT_STACK
+		DECREMENT_STACK
+		(p_s->stk+2)->i = read((p_s->stk-1)->i, p_s->stk->s, (p_s->stk+1)->i);
+		if ((p_s->stk+2)->i < 0)
+		{
+			printf("reads error!!!\n");
+		}
+		(p_s->stk-1)->s = p_s->stk->s;
+		goto loop;
+	}
+	
+	"writes" { // (0fd, 1pBuf)
+		DECREMENT_STACK
+		DECREMENT_STACK
+		(p_s->stk+4)->i = varintGet((p_s->stk+1)->s, (u64*)&(p_s->stk+2)->i);
+		(p_s->stk+2)->i+=(p_s->stk+4)->i;
+		
+		(p_s->stk+3)->i = write(p_s->stk->i, (p_s->stk+1)->s, (p_s->stk+2)->i );
+		
+		if ((p_s->stk+3)->i < 0)
+		{
+			printf("writes error!!!\n");
+		}
+		goto loop;
+	}
+	
 	"debug" {
 		u8 * start_of_line;
 		u8 * end_of_line;
@@ -701,29 +730,6 @@ loop: // label for looping within the lexxer
 				}
 				if (!(strncmp((const char *)p_s->file_name_buff, ".step", 5)))
 				{
-					//~ //printf("yycur_before::%c%c%c%c\n",*p_s->yycur,*(p_s->yycur+1),*(p_s->yycur+2),*(p_s->yycur+3));
-					//~ p_s->yycur-=lex_wsp(&p_s->yycur);
-					//~ //printf("yycur_before::%c%c%c%c\n",*p_s->yycur,*(p_s->yycur+1),*(p_s->yycur+2),*(p_s->yycur+3));
-					//~ // p_s->yycur pointing at code
-					//~ p_s->step_spot=p_s->yycur;
-					//~ YYCURSOR = p_s->yycur;
-					//~ while ( (*p_s->step_spot !=' ') && (*p_s->step_spot !='\n') && (*p_s->step_spot !='(') && (*p_s->step_spot !='\\') ) {
-						//~ p_s->step_spot++;
-					//~ }
-					//~ // p_s->step_spot pointing at a wsp
-					//~ // copy source off
-					//~ strncpy((char *)p_s->file_name_buff, (const char *)p_s->step_spot, 11);
-					//~ // overwrite source with loop back to debug
-					//~ //stpcpy((char *)p_s->step_spot, " debug");
-					//~ if(p_s->is_fp)
-					//~ {
-						//~ stpcpy((char *)p_s->step_spot, " f. debug ");
-					//~ } else {
-						//~ stpcpy((char *)p_s->step_spot, " . debug ");
-					//~ }
-					//~ //printf("YYCURSOR::%s\n",YYCURSOR);
-					//~ p_s->is_step=1;
-					//~ goto loop;
 					YYCURSOR = p_s->yycur;
 					p_s->is_step=1;
 					goto loop;
@@ -731,12 +737,6 @@ loop: // label for looping within the lexxer
 				p_s->out = p_s->buff;
 				p_s->buff = (u8*)stpcpy((char *)p_s->buff, (const char *)p_s->file_name_buff);
 				stpcpy((char *)p_s->buff, " debug");
-				//~ if(p_s->is_fp)
-				//~ {
-					//~ stpcpy((char *)p_s->buff, "f. debug");
-				//~ } else {
-					//~ stpcpy((char *)p_s->buff, ". debug");
-				//~ }
 				YYCURSOR = p_s->out;
 				goto loop;
 			}
@@ -747,7 +747,7 @@ loop: // label for looping within the lexxer
 		start+=1;
 		p_s->stk->i = is_within(p_s->varList, start, (YYCURSOR - start));
 		if (p_s->stk->i==-1){ 
-			printf("Cannot find variable name!!!");
+			printf("Cannot find variable name!!!\n");
 			return -1;
 		}
 		p_s->stk->i = p_s->vars[p_s->stk->i].i;
@@ -760,7 +760,7 @@ loop: // label for looping within the lexxer
 		start+=1;
 		p_s->stk->i = is_within(p_s->varList, start, (YYCURSOR - start));
 		if (p_s->stk->i==-1){ 
-			printf("Cannot find variable name!!!");
+			printf("Cannot find variable name!!!\n");
 			return -1;
 		}
 		p_s->stk->v = &p_s->vars[p_s->stk->i];
@@ -780,7 +780,7 @@ loop: // label for looping within the lexxer
 			// create variable
 			p_s->stk->i = add_to(p_s->varList, start, (YYCURSOR - start));
 			if (p_s->stk->i==-1){ 
-				printf("error out of room for function name!!!");
+				printf("error out of room for function name!!!\n");
 				return -1;
 			}
 			// save value into variable
@@ -822,7 +822,7 @@ loop: // label for looping within the lexxer
 	function_definition { //TODO make correct data structure and overwrite previous entry if exists
 		p_s->stk->i = add_to(p_s->scopeList, start, (YYCURSOR - start-1));
 		if (p_s->stk->i==-1){ 
-			printf("error out of room for function name!!!");
+			printf("error out of room for function name!!!\n");
 			return -1;
 		}
 		// save off function
