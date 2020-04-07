@@ -4,5 +4,8 @@ fith_src/
 test/
 tool/
 tool_output/
+SQLite3_Helper/
+gen/
+sqlite3/
 *.geany
 *.fith

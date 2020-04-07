@@ -18,7 +18,7 @@
 	exp = 'e' [+-]? [0-9]+;
 	flt = (frc exp? | [0-9]+ exp) [fFlL]?;
 	string_lit = ["] ([^"] | ([\\] ["]))* ["];
-	mangled_string_lit = "`" [A-Za-z0-9]* " ";
+	mangled_string_lit = ["] ([^"] | ([\\] ["]))* "\x00";
 	char_lit = ['] ([^'] | ([\\] [']))* ['];
 	integer = oct | dec | hex;
 	lblock =     "{";
@@ -170,7 +170,7 @@ loop: // label for looping within the lexxer
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { goto loop; } //   default rule with its semantic action start =YYCURSOR;
-	[\x00] { return 0; }             // EOF rule with null sentinal
+	[\x03] { return 0; }             // EOF rule with 0x03 sentinal
 	
 	wsp {
 		while (start!=YYCURSOR){
@@ -202,44 +202,15 @@ loop: // label for looping within the lexxer
 	}
 	
 	string_lit { 
-		// rewrite _"ccc"_ ->
-		//         `XXccc" where XX is a var int
-		//         `Xccc" where XX is a var int
-		// get length of string
-		//u8 * tmp = start;
-		//printf("PREmangled_string_lit:%s\n", start);
-		(p_s->stk+1)->i=((YYCURSOR - start)-2);
-		// write in accent
-		*start='`';
-		start++;
-		// get index for string literal after saving it off
-		(p_s->stk+2)->i= enter_string_literal((p_s->stk+1)->i, start, p_s->strList, &p_s->stk->s);
-		//printf("length %ld\n",(p_s->stk+1)->i);
-		//printf("index %ld\n",(p_s->stk+2)->i);
-		
-		// move cursor forward when writting index
-		start+=base64encode(start, (p_s->stk+2)->i);
-		
-		// clean up rest of string with whitespace
-		while(start<YYCURSOR)
-		{
-			*start=' ';
-			start++;
-		}
-		//printf("mangled_string_lit:%s\n", tmp);
+		p_s->stk->s = start+1;
+		*(YYCURSOR-1) = 0;
 		INCREMENT_STACK
 		goto loop;
 	}
 	
-	mangled_string_lit { // 64 bit pointers, special STRING CLASS POINTERS
-		//*(YYCURSOR-1) = 0; // null terminate
-		start++;
-		(p_s->stk+1)->i=safe_atol_64((const u8 **)&start);
-		
-		p_s->stk->s =p_s->strList->ar[(p_s->stk+1)->i/512][(p_s->stk+1)->i%512];
+	mangled_string_lit {
+		p_s->stk->s = start+1;
 		INCREMENT_STACK
-		//t->l = (YYCURSOR - start)-1;//maybe wrong
-		//t->flags|=IS_STR;
 		goto loop;
 	}
 
@@ -247,49 +218,17 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 
-	semi {
+	";" {
 		// pop command stack
 		p_s->cstk--;
 		// goto to return address
 		YYCURSOR = *p_s->cstk;
 		goto loop;
 	}
-
-	//~ ":" {
-		//~ p_s->is_def=1;
-		//~ goto loop;
-	//~ }
 	
 	"p" {
 		DECREMENT_STACK
-		p_s->stk->s+=varintGet(p_s->stk->s, (u64*)&(p_s->stk+1)->i);
-		for(u32 x=0; x<(p_s->stk+1)->i; x++){
-			if(p_s->stk->s[x]=='\\') {
-				x++;
-				switch(p_s->stk->s[x]){
-					case '\\':
-					break;
-					case 'n':
-					p_s->stk->s[x]='\n';
-					break;
-					case 't':
-					p_s->stk->s[x]='\t';
-					break;
-					case '\"':
-					p_s->stk->s[x]='\n';
-					break;
-					case '\'':
-					p_s->stk->s[x]='\'';
-					break;
-					case 'r':
-					p_s->stk->s[x]='\r';
-					break;
-				}
-			}
-			fputc ( p_s->stk->s[x] , stdout );
-		}
-		//printf("%s",p_s->stk->s);
-		fputc ( '\n' , stdout );
+		printf("%s\n",p_s->stk->s);
 		goto loop;
 	}
 
@@ -632,10 +571,10 @@ loop: // label for looping within the lexxer
 	"writes" { // (0fd, 1pBuf)
 		DECREMENT_STACK
 		DECREMENT_STACK
-		(p_s->stk+4)->i = varintGet((p_s->stk+1)->s, (u64*)&(p_s->stk+2)->i);
-		(p_s->stk+2)->i+=(p_s->stk+4)->i;
 		
-		(p_s->stk+3)->i = write(p_s->stk->i, (p_s->stk+1)->s, (p_s->stk+2)->i );
+		(p_s->stk+3)->i = write(p_s->stk->i,
+								(p_s->stk+1)->s,
+								strlen((const char *)(p_s->stk+1)->s)+1);
 		
 		if ((p_s->stk+3)->i < 0)
 		{
@@ -647,7 +586,7 @@ loop: // label for looping within the lexxer
 	"debug" {
 		u8 * start_of_line;
 		u8 * end_of_line;
-		u8 tmp, tmp2;
+		u8 tmp;
 		
 		if (p_s->yycur==0)
 		{
@@ -664,7 +603,7 @@ loop: // label for looping within the lexxer
 		
 		start_of_line=p_s->yycur;
 		end_of_line=p_s->yycur;
-		tmp2 = *p_s->yycur;
+		tmp = *p_s->yycur;
 		*p_s->yycur=')';
 		
 		if (*line_num>1) {
@@ -677,12 +616,13 @@ loop: // label for looping within the lexxer
 				end_of_line++;
 		}
 		end_of_line++;
-		tmp = *end_of_line;
-		*end_of_line=0;
+		//tmp = *end_of_line;
+		//*end_of_line=0;
 		
-		printf("%s", start_of_line);
-		*end_of_line=tmp;
-		*p_s->yycur=tmp2;
+		//printf("%s", start_of_line);
+		print_code(start_of_line, end_of_line-start_of_line);
+		//*end_of_line=tmp;
+		*p_s->yycur=tmp;
 		
 		if(p_s->is_fp)
 		{
@@ -704,8 +644,9 @@ loop: // label for looping within the lexxer
 			{
 				if (!(strncmp((const char *)p_s->file_name_buff, ".dump", 5)))
 				{
-					*(p_s->buff) = '\000';
-					printf("%s",p_s->buff_start);
+					//*(p_s->buff) = '\000';
+					//printf("%s",p_s->buff_start);
+					print_code(p_s->buff_start, p_s->buff-p_s->buff_start);
 					continue;
 				}
 				if (!(strncmp((const char *)p_s->file_name_buff, ".exit", 5)))
