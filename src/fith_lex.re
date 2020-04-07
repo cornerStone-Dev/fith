@@ -6,7 +6,7 @@
 	
 	mcm = "(" [^)\x03]* ")"; // WILL NOT WORK ON "**/" ending!!!!
 	scm = "\\" [^\n\x03]* "\n";
-	wsp = ([ \n\t\v\r] | scm | mcm)+;
+	wsp = ([ \n\t\r] | scm | mcm)+; // removed \v
 	//macro = "#" ([^\n] | "\\\n")* "\n";
 	//local_macro = "#@" ([^\n] | "\\\n")* "\n";
 	// integer literals
@@ -17,9 +17,12 @@
 	frc = [0-9]* "." [0-9]+ | [0-9]+ ".";
 	exp = 'e' [+-]? [0-9]+;
 	flt = (frc exp? | [0-9]+ exp) [fFlL]?;
-	string_lit = ["] ([^"\x00] | ([\\] ["]))* ["];
-	string_lit_chain = string_lit (wsp string_lit)+;
-	mangled_string_lit = ["] ([^"\x00] | ([\\] ["]))* "\x00";
+	string_lit = ["] ([^"\x00\x03] | ([\\] ["]))* ["];
+	//string_lit_chain = string_lit ([ \n\t\r]* string_lit)+;
+	//string_lit_chain = ([^"\n] | ([\\] ["]))* ("\n" | ["]);
+	string_lit_chain = ([^"\n] | ([\\] ["]))* "\n";
+	string_lit_end = ([^"\n] | ([\\] ["]))* ["];
+	mangled_string_lit = ["] ([^"\x00\x03] | ([\\] ["]))* "\x00";
 	char_lit = ['] ([^'\x03] | ([\\] [']))* ['];
 	integer = oct | dec | hex;
 	lblock =     "{";
@@ -37,7 +40,6 @@
 	function_call = [a-zA-Z_][a-zA-Z_0-9?]*;
 	function_call_addr = [a-zA-Z_][a-zA-Z_0-9?]*"@";
 	function_definition = [a-zA-Z_][a-zA-Z_0-9?]* ":";
-	//query =  "SQL3_QUERY_" [a-zA-Z_0-9]*;
 	var = "$" function_call; // push value on stack, if exists
 	var_assign = "=$" function_call; // pop top of stack and assign to value, create variable 
 	var_addr = "@" function_call; // push address on stack
@@ -69,10 +71,54 @@ static int lex_options(/*const*/ u8 * YYCURSOR) // YYCURSOR is defined as a func
 		return 1;
 	}
 	
-	[a-zA-Z_/0-9-]+ ".fith" {
+	//[a-zA-Z_/0-9-]+ ".fith" {
+	[a-zA-Z_/0-9] [a-zA-Z_/0-9-]* ".fith" {
 		return 2;
 	}
 	
+	*/                               // end of re2c block
+}
+
+static int lex_string_lit_chain(u8 ** YYCURSOR_p)
+{                                    //
+	u8 * YYCURSOR;
+	u8 *start;
+	u8 *startMangledString;
+	YYCURSOR = *YYCURSOR_p;
+	startMangledString = YYCURSOR;
+	
+
+loop: // label for looping within the lexxer
+	start = YYCURSOR;
+
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { goto loop; }//   default rule with its semantic action
+	//[\x00] { return 1; }             // EOF rule with null sentinal
+	
+	string_lit_chain {
+		*(YYCURSOR-1) = 0;
+		startMangledString = (u8*)stpcpy((char *)startMangledString,
+										(const char *)start);
+		*YYCURSOR_p = startMangledString;
+		goto loop;
+	}
+	
+	string_lit_end {
+		if(startMangledString==start)
+		{
+			*(YYCURSOR-1) = 0;
+			return 0;
+		}
+		*(YYCURSOR-1) = 0;
+		startMangledString = (u8*)stpcpy((char *)startMangledString,
+										(const char *)start);
+		*YYCURSOR_p = startMangledString;
+		return 1;
+	}
+
 	*/                               // end of re2c block
 }
 
@@ -203,18 +249,19 @@ loop: // label for looping within the lexxer
 	}
 	
 	string_lit { 
-		p_s->stk->s = start+1;
-		*(YYCURSOR-1) = 0;
+		start++;
+		p_s->stk->s = start;
+		// concatenate all multiline strings
+		if(lex_string_lit_chain(&start))
+		{
+			// start is final null of created mangled_string_lit
+			start++;
+			// fill in with spaces until end
+			while (start!=YYCURSOR){*start=' ';start++;}
+		}
 		INCREMENT_STACK
 		goto loop;
 	}
-	
-	//~ string_lit_chain { 
-		//~ p_s->stk->s = start+1;
-		//~ *(YYCURSOR-1) = 0;
-		//~ INCREMENT_STACK
-		//~ goto loop;
-	//~ }
 	
 	mangled_string_lit {
 		p_s->stk->s = start+1;
@@ -505,9 +552,10 @@ loop: // label for looping within the lexxer
 	}
 	
 	"sleep" {
-		p_s->time.tv_sec = (p_s->stk-2)->i;
-		p_s->time.tv_nsec = (p_s->stk-1)->i;
-		p_s->stk-=2;
+		DECREMENT_STACK
+		DECREMENT_STACK
+		p_s->time.tv_sec = (p_s->stk)->i;
+		p_s->time.tv_nsec = (p_s->stk+1)->i;
 		nanosleep(&p_s->time, NULL);
 		goto loop;
 	}
