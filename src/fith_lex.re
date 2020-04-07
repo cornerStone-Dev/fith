@@ -18,8 +18,9 @@
 	exp = 'e' [+-]? [0-9]+;
 	flt = (frc exp? | [0-9]+ exp) [fFlL]?;
 	string_lit = ["] ([^"\x00] | ([\\] ["]))* ["];
+	string_lit_chain = string_lit (wsp string_lit)+;
 	mangled_string_lit = ["] ([^"\x00] | ([\\] ["]))* "\x00";
-	char_lit = ['] ([^'] | ([\\] [']))* ['];
+	char_lit = ['] ([^'\x03] | ([\\] [']))* ['];
 	integer = oct | dec | hex;
 	lblock =     "{";
 	rblock =     "}";
@@ -207,6 +208,13 @@ loop: // label for looping within the lexxer
 		INCREMENT_STACK
 		goto loop;
 	}
+	
+	//~ string_lit_chain { 
+		//~ p_s->stk->s = start+1;
+		//~ *(YYCURSOR-1) = 0;
+		//~ INCREMENT_STACK
+		//~ goto loop;
+	//~ }
 	
 	mangled_string_lit {
 		p_s->stk->s = start+1;
@@ -539,6 +547,17 @@ loop: // label for looping within the lexxer
 	"free" {
 		DECREMENT_STACK
 		free(p_s->stk->s);
+		goto loop;
+	}
+	
+	"random" {
+		sqlite3_randomness(8, &p_s->stk->i);
+		INCREMENT_STACK
+		goto loop;
+	}
+	
+	"abs" {
+		(p_s->stk-1)->i=labs((p_s->stk-1)->i);
 		goto loop;
 	}
 	

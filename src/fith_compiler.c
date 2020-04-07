@@ -220,7 +220,7 @@ int main(int argc, char **argv)
 	fdb_SETUP();
 	fdb_PREPARE();
 	
-	SQL3_SETUP(fdb, "CREATE TABLE db_names(db_key INTEGER PRIMARY KEY, db_name TEXT);");
+	SQL3_SETUP(fdb, "PRAGMA journal_mode = OFF;");
 	SQL3_QUERY_insert_db_name(fdb,
 		"INSERT INTO db_names VALUES("
 		"NULL, ?t@s$l);");
@@ -384,10 +384,6 @@ int main(int argc, char **argv)
 		/* 0x03 terminate buffer */
 		buffer[lSize]=3;
 		
-#ifndef NDEBUG
-		ParseTrace(stdout, "debug:: ");
-#endif
-		//printf("starting parse\n");
 		do {
 			tmp_token = lex(data, &token, &p_s.line_num, &p_s);
 
