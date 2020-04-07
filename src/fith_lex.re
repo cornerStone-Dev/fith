@@ -4,8 +4,8 @@
 /*!max:re2c*/                        // directive that defines YYMAXFILL (unused)
 /*!re2c                              // start of re2c block
 	
-	mcm = "(" [^)]* ")"; // WILL NOT WORK ON "**/" ending!!!!
-	scm = "\\" [^\n]* "\n";
+	mcm = "(" [^)\x03]* ")"; // WILL NOT WORK ON "**/" ending!!!!
+	scm = "\\" [^\n\x03]* "\n";
 	wsp = ([ \n\t\v\r] | scm | mcm)+;
 	//macro = "#" ([^\n] | "\\\n")* "\n";
 	//local_macro = "#@" ([^\n] | "\\\n")* "\n";
@@ -17,8 +17,8 @@
 	frc = [0-9]* "." [0-9]+ | [0-9]+ ".";
 	exp = 'e' [+-]? [0-9]+;
 	flt = (frc exp? | [0-9]+ exp) [fFlL]?;
-	string_lit = ["] ([^"] | ([\\] ["]))* ["];
-	mangled_string_lit = ["] ([^"] | ([\\] ["]))* "\x00";
+	string_lit = ["] ([^"\x00] | ([\\] ["]))* ["];
+	mangled_string_lit = ["] ([^"\x00] | ([\\] ["]))* "\x00";
 	char_lit = ['] ([^'] | ([\\] [']))* ['];
 	integer = oct | dec | hex;
 	lblock =     "{";
@@ -93,7 +93,7 @@ loop: // label for looping within the lexxer
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { /*start =YYCURSOR;*/ goto loop; }//   default rule with its semantic action
-	[\x00] { return 1; }             // EOF rule with null sentinal
+	[\x03] { return 1; }             // EOF rule with null sentinal
 	
 	
 	wsp {
