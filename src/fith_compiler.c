@@ -102,10 +102,10 @@ typedef struct parser_s{
 static sqlite3 *fdb;
 
 /* function prototypes */
-static s32
-add_to(ScopeList * restrict str_l, u8 * restrict s, u32  l);
-static s32
-is_within(ScopeList * restrict str_l, u8 * restrict s, u32  l);
+//~ static s32
+//~ add_to(ScopeList * restrict str_l, u8 * restrict s, u32  l);
+//~ static s32
+//~ is_within(ScopeList * restrict str_l, u8 * restrict s, u32  l);
 //~ static u8 *
 //~ indx_within(ScopeList * restrict str_l, u32  indx, u8 * restrict output);
 //~ static void
@@ -223,6 +223,8 @@ int main(int argc, char **argv)
 	
 	SQL3_SETUP(fdb, "PRAGMA journal_mode=OFF;");
 	SQL3_SETUP(fdb, "CREATE TABLE fns(name TEXT PRIMARY KEY, addr INTEGER)WITHOUT ROWID;");
+	SQL3_SETUP(fdb, "CREATE TABLE vars(name TEXT PRIMARY KEY, val INTEGER)WITHOUT ROWID;");
+	SQL3_SETUP(fdb, "CREATE TABLE ptrs(addr INTEGER PRIMARY KEY);");
 	
 	
 	// end output fl_std file
@@ -422,88 +424,88 @@ int main(int argc, char **argv)
 	return rcode;
 }
 
-static s32
-add_to(ScopeList * restrict str_l, u8 * restrict s, u32  l)
-{
-	u8 * cursor = str_l->cursor_stack[str_l->scopeIdx];
-	u8 * end =    str_l->end;
+//~ static s32
+//~ add_to(ScopeList * restrict str_l, u8 * restrict s, u32  l)
+//~ {
+	//~ u8 * cursor = str_l->cursor_stack[str_l->scopeIdx];
+	//~ u8 * end =    str_l->end;
 	
-	if ( (end - cursor) < l )
-	{
-		printf ("ScopeList: out of room\n");
-		return -1;
-	}
+	//~ if ( (end - cursor) < l )
+	//~ {
+		//~ printf ("ScopeList: out of room\n");
+		//~ return -1;
+	//~ }
 	
-	/* copy string to type_table */
-	for (s32 i=0;i<l;i++)
-	{
-		*cursor = *s;
-		cursor++;
-		s++;
-	}
+	//~ /* copy string to type_table */
+	//~ for (s32 i=0;i<l;i++)
+	//~ {
+		//~ *cursor = *s;
+		//~ cursor++;
+		//~ s++;
+	//~ }
 	
-	/* store length of string */
-	*cursor = l;
-	cursor++;
+	//~ /* store length of string */
+	//~ *cursor = l;
+	//~ cursor++;
 	
 	
-	//printf("*str_l->count =%d\n", str_l->item_count_stack[str_l->scopeIdx]);
-	str_l->cursor_stack[str_l->scopeIdx] = cursor;
-	str_l->item_count_stack[str_l->scopeIdx]+=1;
+	//~ //printf("*str_l->count =%d\n", str_l->item_count_stack[str_l->scopeIdx]);
+	//~ str_l->cursor_stack[str_l->scopeIdx] = cursor;
+	//~ str_l->item_count_stack[str_l->scopeIdx]+=1;
 	
-	return str_l->item_count_stack[str_l->scopeIdx]-1;
-}
+	//~ return str_l->item_count_stack[str_l->scopeIdx]-1;
+//~ }
 
-/* search type table for IDENT */
-static s32
-is_within(ScopeList * restrict str_l, u8 * restrict s, u32  l)
-{
-	u8 * cursor = str_l->cursor_stack[str_l->scopeIdx]-1;
-	u8 * start =  str_l->table;
-	u8 * string = s;
-	u8 * len_cursor;
-	s32  idx = str_l->item_count_stack[str_l->scopeIdx];
-	u8   len;
+//~ /* search type table for IDENT */
+//~ static s32
+//~ is_within(ScopeList * restrict str_l, u8 * restrict s, u32  l)
+//~ {
+	//~ u8 * cursor = str_l->cursor_stack[str_l->scopeIdx]-1;
+	//~ u8 * start =  str_l->table;
+	//~ u8 * string = s;
+	//~ u8 * len_cursor;
+	//~ s32  idx = str_l->item_count_stack[str_l->scopeIdx];
+	//~ u8   len;
 	
 	
-	/* search backwards, view as a stack */
-	while ( cursor >= start )
-	{
-		len = (*cursor);
-		len_cursor = cursor;
-		idx--;
-		if ( l != len )
-		{
-			/* skip to next one */
-			cursor = len_cursor-len-1;
-			continue;
-		}
-		cursor-=len;
-		/* matching length */
-		for (s32 i=0;i<l;i++)
-		{
-			if ( (*cursor)!= (*s) )
-			{
-				/* skip to next string */
-				cursor = len_cursor-len-1;
-				/* reset string */
-				s = string;
-				break;
-			}
-			cursor++;
-			s++;
-		}
-		/* see if success */
-		if ( s != string )
-		{
-			//printf(" found something!!\n");
-			return idx;
-		}
-	}
-	/* we have found nothing */
-	//printf(" found nothing!!\n");
-	return -1;
-}
+	//~ /* search backwards, view as a stack */
+	//~ while ( cursor >= start )
+	//~ {
+		//~ len = (*cursor);
+		//~ len_cursor = cursor;
+		//~ idx--;
+		//~ if ( l != len )
+		//~ {
+			//~ /* skip to next one */
+			//~ cursor = len_cursor-len-1;
+			//~ continue;
+		//~ }
+		//~ cursor-=len;
+		//~ /* matching length */
+		//~ for (s32 i=0;i<l;i++)
+		//~ {
+			//~ if ( (*cursor)!= (*s) )
+			//~ {
+				//~ /* skip to next string */
+				//~ cursor = len_cursor-len-1;
+				//~ /* reset string */
+				//~ s = string;
+				//~ break;
+			//~ }
+			//~ cursor++;
+			//~ s++;
+		//~ }
+		//~ /* see if success */
+		//~ if ( s != string )
+		//~ {
+			//~ //printf(" found something!!\n");
+			//~ return idx;
+		//~ }
+	//~ }
+	//~ /* we have found nothing */
+	//~ //printf(" found nothing!!\n");
+	//~ return -1;
+//~ }
 
 /* search type table at index */
 //~ static u8 *

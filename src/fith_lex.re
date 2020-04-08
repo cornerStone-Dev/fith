@@ -41,7 +41,10 @@
 	function_call_addr = [a-zA-Z_][a-zA-Z_0-9?]*"@";
 	function_definition = [a-zA-Z_][a-zA-Z_0-9?]* ":";
 	var = "$" function_call; // push value on stack, if exists
-	var_assign = "=$" function_call; // pop top of stack and assign to value, create variable 
+	var_json_action = "$" [a-zA-Z_][a-zA-Z_0-9?]* ".j."; // push value on stack, if exists
+	var_assign = "=$" function_call; // pop top of stack and assign to value, create variable
+	var_create_json_o = "=$" function_call ".jo"; // create JSON value
+	var_create_json_a = "=$" function_call ".ja"; // create JSON value
 	var_addr = "@" function_call; // push address on stack
 
 	
@@ -457,7 +460,7 @@ loop: // label for looping within the lexxer
 
 	"." {
 		for(int x =0 ; &p_s->stk_start[x]!=p_s->stk;x++){
-			printf("[%ld] ",p_s->stk_start[x].i);
+			printf("(%ld) ",p_s->stk_start[x].i);
 		}
 		printf("\n");
 		goto loop;
@@ -465,7 +468,7 @@ loop: // label for looping within the lexxer
 	
 	"f." {
 		for(int x =0 ; &p_s->stk_start[x]!=p_s->stk;x++){
-			printf("[%f] ",p_s->stk_start[x].d);
+			printf("(%f) ",p_s->stk_start[x].d);
 		}
 		printf("\n");
 		goto loop;
@@ -606,6 +609,47 @@ loop: // label for looping within the lexxer
 	
 	"abs" {
 		(p_s->stk-1)->i=labs((p_s->stk-1)->i);
+		goto loop;
+	}
+
+	"json_set_j" {
+		DECREMENT_STACK
+		DECREMENT_STACK
+		(p_s->stk-1)->s = fith_json_set_j((p_s->stk-1)->s,
+											p_s->stk->s,
+											(p_s->stk+1)->s);
+		goto loop;
+	}
+
+	"json_set_s" {
+		DECREMENT_STACK
+		DECREMENT_STACK
+		(p_s->stk-1)->s = fith_json_set_s((p_s->stk-1)->s,
+											p_s->stk->s,
+											(p_s->stk+1)->s);
+		goto loop;
+	}
+	
+	"json_set_i" {
+		DECREMENT_STACK
+		DECREMENT_STACK
+		(p_s->stk-1)->s = fith_json_set_i((p_s->stk-1)->s,
+											p_s->stk->s,
+											(p_s->stk+1)->i);
+		goto loop;
+	}
+	
+	"json_set_d" {
+		DECREMENT_STACK
+		DECREMENT_STACK
+		(p_s->stk-1)->s = fith_json_set_d((p_s->stk-1)->s,
+											p_s->stk->s,
+											(p_s->stk+1)->d);
+		goto loop;
+	}
+	
+	"json_array_len" {
+		(p_s->stk-1)->i = fith_json_array_length((p_s->stk-1)->s);
 		goto loop;
 	}
 	
@@ -753,49 +797,55 @@ loop: // label for looping within the lexxer
 	
 	var {
 		start+=1;
-		p_s->stk->i = is_within(p_s->varList, start, (YYCURSOR - start));
-		if (p_s->stk->i==-1){ 
-			printf("Cannot find variable name!!!\n");
-			return -1;
+		(p_s->stk+1)->i = get_variable(start, (YYCURSOR - start), &p_s->stk->i);
+		if (p_s->stk->s==0){
+			printf("Cannot find function name!!!");
+			print_code(start, (YYCURSOR - start));
+			fputc ('\n', stdout);
+			goto loop;
 		}
-		p_s->stk->i = p_s->vars[p_s->stk->i].i;
 		INCREMENT_STACK
-
 		goto loop;
 	}
 	
-	var_addr {
-		start+=1;
-		p_s->stk->i = is_within(p_s->varList, start, (YYCURSOR - start));
-		if (p_s->stk->i==-1){ 
-			printf("Cannot find variable name!!!\n");
-			return -1;
-		}
-		p_s->stk->v = &p_s->vars[p_s->stk->i];
-		INCREMENT_STACK
-		goto loop;
-	}
+	//~ "$" [a-zA-Z_][a-zA-Z_0-9?]* ".j.set" {
+		//~ start+=1;
+		//~ (p_s->stk+1)->i = get_variable(start, (YYCURSOR - start), &p_s->stk->i);
+		//~ if (p_s->stk->s==0){
+			//~ printf("Cannot find function name!!!");
+			//~ print_code(start, (YYCURSOR - start));
+			//~ fputc ('\n', stdout);
+			//~ goto loop;
+		//~ }
+		//~ DECREMENT_STACK
+		//~ DECREMENT_STACK
+		
+		//~ goto loop;
+	//~ }
 	
 	var_assign {
 		start+=2;
-		p_s->stk->i = is_within(p_s->varList, start, (YYCURSOR - start));
-		if (p_s->stk->i!=-1){ // var is found
-			// save value into variable
-			p_s->vars[p_s->stk->i].i = (p_s->stk-1)->i;
-			// pop stack
-			DECREMENT_STACK
-		} else { // var does not exist
-			// create variable
-			p_s->stk->i = add_to(p_s->varList, start, (YYCURSOR - start));
-			if (p_s->stk->i==-1){ 
-				printf("error out of room for function name!!!\n");
-				return -1;
-			}
-			// save value into variable
-			p_s->vars[p_s->stk->i].i = (p_s->stk-1)->i;
-			// pop stack
-			DECREMENT_STACK
-		}
+		DECREMENT_STACK
+		// will try to insert unique name, if fails will update value only
+		save_variable(start, (YYCURSOR - start), p_s->stk->i);
+		goto loop;
+	}
+	
+	var_create_json_a { //
+		start+=2;
+		// will try to insert unique name, if fails will update value only
+		p_s->stk->s = logged_malloc(64);
+		strcpy((char *)p_s->stk->s,"[]");
+		save_variable(start, (YYCURSOR - start - 5), p_s->stk->i);
+		goto loop;
+	}
+	
+	var_create_json_o { //
+		start+=2;
+		// will try to insert unique name, if fails will update value only
+		p_s->stk->s = logged_malloc(64);
+		strcpy((char *)p_s->stk->s,"{}");
+		save_variable(start, (YYCURSOR - start - 5), p_s->stk->i);
 		goto loop;
 	}
 	
@@ -804,10 +854,7 @@ loop: // label for looping within the lexxer
 		p_s->stk->s = (u8 *)get_function_addr(start, (YYCURSOR - start));
 		if (p_s->stk->s==0){
 			printf("Cannot find function name!!!");
-			for(u32 u=0; u<(YYCURSOR - start); u++)
-			{
-				fputc (start[u], stdout);
-			}
+			print_code(start, (YYCURSOR - start));
 			fputc ('\n', stdout);
 			goto loop;
 		}
@@ -823,10 +870,7 @@ loop: // label for looping within the lexxer
 		p_s->stk->s = (u8 *)get_function_addr(start, (YYCURSOR - start-1));
 		if (p_s->stk->s==0){
 			printf("Cannot find function name!!!");
-			for(u32 u=0; u<(YYCURSOR - start); u++)
-			{
-				fputc (start[u], stdout);
-			}
+			print_code(start, (YYCURSOR - start));
 			fputc ('\n', stdout);
 			goto loop;
 		}
