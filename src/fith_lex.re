@@ -799,42 +799,43 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
-	function_call { //TODO make correct data structure and overwrite previous entry if exists
-		p_s->stk->i = is_within(p_s->scopeList, start, (YYCURSOR - start));
-		if (p_s->stk->i==-1){
-			printf("Cannot find function name!!!:%s , len:%ld\n", start, (YYCURSOR - start));
-			//return -1;
+	function_call {
+		//get_function_addr
+		p_s->stk->s = (u8 *)get_function_addr(start, (YYCURSOR - start));
+		if (p_s->stk->s==0){
+			printf("Cannot find function name!!!");
+			for(u32 u=0; u<(YYCURSOR - start); u++)
+			{
+				fputc (start[u], stdout);
+			}
+			fputc ('\n', stdout);
 			goto loop;
 		}
 		// save off return
 		*p_s->cstk = YYCURSOR;
 		p_s->cstk++;
 		// jump to function
-		YYCURSOR = p_s->words[p_s->stk->i]; 
+		YYCURSOR = p_s->stk->s;
 		goto loop;
 	}
 	
-	function_call_addr { // push function address on stack
-		(p_s->stk+1)->i = is_within(p_s->scopeList, start, (YYCURSOR - start-1));
-		if ((p_s->stk+1)->i==-1){ 
-			printf("Cannot find function name!!!:%s , len:%ld\n", start, (YYCURSOR - start));
-			//return -1;
+	function_call_addr {
+		p_s->stk->s = (u8 *)get_function_addr(start, (YYCURSOR - start-1));
+		if (p_s->stk->s==0){
+			printf("Cannot find function name!!!");
+			for(u32 u=0; u<(YYCURSOR - start); u++)
+			{
+				fputc (start[u], stdout);
+			}
+			fputc ('\n', stdout);
 			goto loop;
 		}
-		// save off return
-		p_s->stk->s = p_s->words[(p_s->stk+1)->i];
 		INCREMENT_STACK
 		goto loop;
 	}
 	
-	function_definition { //TODO make correct data structure and overwrite previous entry if exists
-		p_s->stk->i = add_to(p_s->scopeList, start, (YYCURSOR - start-1));
-		if (p_s->stk->i==-1){ 
-			printf("error out of room for function name!!!\n");
-			return -1;
-		}
-		// save off function
-		p_s->words[p_s->stk->i] = YYCURSOR;
+	function_definition {
+		save_function_addr(start, (YYCURSOR - start-1), YYCURSOR);
 		YYCURSOR-=lex_if_else(&YYCURSOR, 2); // skip definition
 		goto loop;
 	}

@@ -17,6 +17,7 @@
 
 #include "../sqlite3/sqlite3.h"
 #include "../gen/sql3_macros.c"
+#include "fith_data.c"
 
 #define NDEBUG
 #define Parse_ENGINEALWAYSONSTACK
@@ -65,37 +66,37 @@ typedef struct stringLitList{
 } stringLitList;
 
 typedef struct parser_s{
-	ScopeList * scopeList;
-	ScopeList * varList;
-	Data *      stk;
-	Data *      stk_start;
-	Data *      stk_end;
-	Data *      vars;
-	stringLitList * strList;
-	u8 **       cstk;
-	u8 **       words;
-	u8 *        buff;
-	u8 *        buff_start;
-	u8 *        out;
-	u8 *        yycur;
-	u8 *        step_spot;
-	struct      timespec time;
-	u32         num_dots;
-	u32         line_num;
-	u32         func_start_line_num;
-	u8          file_name_buff[512];
-	u8          is_def;
-	u8          is_fork_child;
-	u8          is_fork_parent;
-	u8          is_struct;
-	u8          is_union;
-	u8          is_fp;
-	u8          is_step;
-	u8          is_custom_type;
-	u8          inside_function;
-	u8          printed_error;
-	u8          local_macro;
-	u8          is_inline;
+	ScopeList     *scopeList;
+	ScopeList     *varList;
+	Data *        stk;
+	Data *        stk_start;
+	Data *        stk_end;
+	Data *        vars;
+	stringLitList *strList;
+	u8 **         cstk;
+	u8 **         words;
+	u8 *          buff;
+	u8 *          buff_start;
+	u8 *          out;
+	u8 *          yycur;
+	u8 *          step_spot;
+	struct        timespec time;
+	u32           num_dots;
+	u32           line_num;
+	u32           func_start_line_num;
+	u8            file_name_buff[512];
+	u8            is_def;
+	u8            is_fork_child;
+	u8            is_fork_parent;
+	u8            is_struct;
+	u8            is_union;
+	u8            is_fp;
+	u8            is_step;
+	u8            is_custom_type;
+	u8            inside_function;
+	u8            printed_error;
+	u8            local_macro;
+	u8            is_inline;
 } ParserState;
 
 static sqlite3 *fdb;
@@ -220,10 +221,9 @@ int main(int argc, char **argv)
 	fdb_SETUP();
 	fdb_PREPARE();
 	
-	SQL3_SETUP(fdb, "PRAGMA journal_mode = OFF;");
-	SQL3_QUERY_insert_db_name(fdb,
-		"INSERT INTO db_names VALUES("
-		"NULL, ?t@s$l);");
+	SQL3_SETUP(fdb, "PRAGMA journal_mode=OFF;");
+	SQL3_SETUP(fdb, "CREATE TABLE fns(name TEXT PRIMARY KEY, addr INTEGER)WITHOUT ROWID;");
+	
 	
 	// end output fl_std file
 	//~ printf("argc: %d\n", argc);
