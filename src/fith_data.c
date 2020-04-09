@@ -36,31 +36,64 @@ fith_json_array_length(u8 *json)
 	return res;
 }
 
-//~ static u8 *
-//~ fith_json_extract(u8 *json, u8 *key, u8 *val)
-//~ {
-	//~ u8 buff[256];
-	//~ const u8 *res;
-	//~ u8 *ret;
+static s64
+fith_json_extract(u8 *json, u8 *key, Data *val)
+{
+	u8 buff[256];
+	const u8 *res;
+	u8 *ret;
 	
 	
-	//~ SQL3_QUERY_json_set_s(fdb,
-		//~ "SELECT =?t:res json_set(?t@json, ?t@buff, ?t@val);");
+	SQL3_QUERY_json_extract(fdb,
+		"SELECT =?t:res json_type(?t@json, ?t@buff),json_extract(?t@json, ?t@buff);");
 	
-	//~ buff[0]='$';
-	//~ buff[1]=0;
-	//~ strcat((char *)buff,(const char *)key);
+	buff[0]='$';
+	buff[1]=0;
+	strcat((char *)buff,(const char *)key);
 	
-	//~ SQL3_BIND_json_set_s();
+	SQL3_BIND_json_extract();
 	
-	//~ /* prepare SQL query */
-	//~ SQL3_STEP_json_set_s();
-	//~ SQL3_COL_json_set_s();
-	//~ ret = logged_malloc(((strlen((const char *)res)/64+1)*64));
-	//~ strcpy((char *)ret, (const char *)res);
-	//~ SQL3_RESET_json_set_s();
-	//~ return ret;
-//~ }
+	/* prepare SQL query */
+	SQL3_STEP_json_extract();
+	SQL3_COL_json_extract();
+	switch(res[0]) {
+		case 0:   // NULL
+		res = (const u8 *)"NULL";
+		goto copy_exit;
+		case 'a': // array
+		goto text_exit;
+		case 'f': // false
+		goto copy_exit;
+		case 'i': // integer
+		val->i=sqlite3_column_int64(fdb_stmt_array[fdb_enum3], 1);
+		goto reset_exit;
+		case 'n': // null
+		goto copy_exit;
+		case 'o': // object
+		goto text_exit;
+		case 'r': // real
+		val->d=sqlite3_column_double(fdb_stmt_array[fdb_enum3], 1);
+		goto reset_exit;
+		case 't': // true or text
+		if (res[1]=='r') { // true
+			goto copy_exit;
+		}
+		goto text_exit;
+		break;
+		default: return -1;
+	}
+	text_exit:
+	res=sqlite3_column_text(fdb_stmt_array[fdb_enum3], 1);
+	copy_exit:
+	ret = logged_malloc(((strlen((const char *)res)/64+1)*64));
+	strcpy((char *)ret, (const char *)res);
+	val->s = ret;
+	reset_exit:
+	SQL3_RESET_json_extract();
+	return 0;
+}
+
+//TODO stay below
 
 static u8 *
 fith_json_set_j(u8 *json, u8 *key, u8 *val)

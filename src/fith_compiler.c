@@ -17,7 +17,6 @@
 
 #include "../sqlite3/sqlite3.h"
 #include "../gen/sql3_macros.c"
-#include "fith_data.c"
 
 #define NDEBUG
 #define Parse_ENGINEALWAYSONSTACK
@@ -153,6 +152,7 @@ if (p_s->stk<p_s->stk_end) \
 } else \
 { printf("stack overflow!!!\n"); }
 
+#include "fith_data.c"
 #include "../tool_output/fith_lex.c"
 //#include "../tool_output/fl_c_gram.c"
 //~ #include "../tool_output/fcompile_gram.c"

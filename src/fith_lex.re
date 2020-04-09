@@ -286,7 +286,9 @@ loop: // label for looping within the lexxer
 	
 	"p" {
 		DECREMENT_STACK
-		printf("%s\n",p_s->stk->s);
+		printf("%s\n",(const char *)p_s->stk->s);
+		//~ printf((const char *)p_s->stk->s);
+		//~ printf("\n");
 		goto loop;
 	}
 
@@ -607,8 +609,30 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	"memcmp" {
+		DECREMENT_STACK
+		DECREMENT_STACK
+		(p_s->stk-1)->i = memcmp((p_s->stk-1)->s,
+											p_s->stk->s,
+											(p_s->stk+1)->i);
+		goto loop;
+	}
+	
 	"abs" {
 		(p_s->stk-1)->i=labs((p_s->stk-1)->i);
+		goto loop;
+	}
+	
+	"json_extract" {
+		DECREMENT_STACK
+		(p_s->stk-1)->i = fith_json_extract((p_s->stk-1)->s,
+											p_s->stk->s,
+											(p_s->stk+1));
+		if ((p_s->stk-1)->i){
+			printf("json_extract error!!!\n");
+		}
+		(p_s->stk-1)->i = (p_s->stk+1)->i;
+		
 		goto loop;
 	}
 
@@ -828,24 +852,6 @@ loop: // label for looping within the lexxer
 		DECREMENT_STACK
 		// will try to insert unique name, if fails will update value only
 		save_variable(start, (YYCURSOR - start), p_s->stk->i);
-		goto loop;
-	}
-	
-	var_create_json_a { //
-		start+=2;
-		// will try to insert unique name, if fails will update value only
-		p_s->stk->s = logged_malloc(64);
-		strcpy((char *)p_s->stk->s,"[]");
-		save_variable(start, (YYCURSOR - start - 5), p_s->stk->i);
-		goto loop;
-	}
-	
-	var_create_json_o { //
-		start+=2;
-		// will try to insert unique name, if fails will update value only
-		p_s->stk->s = logged_malloc(64);
-		strcpy((char *)p_s->stk->s,"{}");
-		save_variable(start, (YYCURSOR - start - 5), p_s->stk->i);
 		goto loop;
 	}
 	
