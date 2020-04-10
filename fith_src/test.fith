@@ -122,10 +122,16 @@ $json1 ".info" $json2 json_set_j =$json1 $json1 p $json1 ".info[0]" json_extract
 63 memcmp 0 != if "ERROR JSON not expected" then )
 
 
-
-
-
-
+"special" =$jsonObj.type.s $jsonObj p
+"green" =$jsonObj.color.s $jsonObj p
+"Ham sandwich" =$jsonObj.lunch.s $jsonObj p
+5 =$jsonObj.num.i $jsonObj p
+53.5 =$jsonObj.numpy.d $jsonObj p
+$json2 =$jsonObj.animal.j $jsonObj p
+67 =$jsonObj.animal[3].i $jsonObj p \ add to array value of key animal
+$jsonObj.animal[3] . drop
+$jsonObj.animal p
+\ $jsonObj.num (5)
 
 
 

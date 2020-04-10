@@ -28,8 +28,6 @@ fith_json_array_length(u8 *json)
 	
 	SQL3_BIND_json_array_length();
 	
-	/* prepare SQL query */
-	//~ n = 
 	SQL3_STEP_json_array_length();
 	SQL3_COL_json_array_length();
 	SQL3_RESET_json_array_length();
@@ -79,7 +77,6 @@ fith_json_extract(u8 *json, u8 *key, Data *val)
 			goto copy_exit;
 		}
 		goto text_exit;
-		break;
 		default: return -1;
 	}
 	text_exit:
@@ -123,6 +120,36 @@ fith_json_set_j(u8 *json, u8 *key, u8 *val)
 }
 
 static u8 *
+fith_json_set_j_internal(u8 *json, u8 *key, u8 *val)
+{
+	const u8 *res;
+	u8 *ret;
+	u32 json_length, j_scale, new_scale;
+	u8 buff[256];
+	
+	json_length=strlen((const char *)json);
+	j_scale=json_length/64+1;
+	buff[0]='$';
+	buff[1]=0;
+	strcat((char *)buff,(const char *)key);
+	
+	SQL3_BIND_json_set_j();
+	
+	SQL3_STEP_json_set_j();
+	SQL3_COL_json_set_j();
+	// res now holds string
+	new_scale=strlen((const char *)res)/64+1;
+	if((json_length>2)&&(j_scale>=new_scale)) { // not a new json creation
+		ret = json;
+	} else { // new or previous size too small
+		ret = logged_malloc(new_scale*64);
+	}
+	strcpy((char *)ret, (const char *)res);
+	SQL3_RESET_json_set_j();
+	return ret;
+}
+
+static u8 *
 fith_json_set_s(u8 *json, u8 *key, u8 *val)
 {
 	u8 buff[256];
@@ -144,6 +171,36 @@ fith_json_set_s(u8 *json, u8 *key, u8 *val)
 	SQL3_STEP_json_set_s();
 	SQL3_COL_json_set_s();
 	ret = logged_malloc(((strlen((const char *)res)/64+1)*64));
+	strcpy((char *)ret, (const char *)res);
+	SQL3_RESET_json_set_s();
+	return ret;
+}
+
+static u8 *
+fith_json_set_s_internal(u8 *json, u8 *key, u8 *val)
+{
+	const u8 *res;
+	u8 *ret;
+	u32 json_length, j_scale, new_scale;
+	u8 buff[256];
+	
+	json_length=strlen((const char *)json);
+	j_scale=json_length/64+1;
+	buff[0]='$';
+	buff[1]=0;
+	strcat((char *)buff,(const char *)key);
+	
+	SQL3_BIND_json_set_s();
+	
+	SQL3_STEP_json_set_s();
+	SQL3_COL_json_set_s();
+	// res now holds string
+	new_scale=strlen((const char *)res)/64+1;
+	if((json_length>2)&&(j_scale>=new_scale)) { // not a new json creation
+		ret = json;
+	} else { // new or previous size too small
+		ret = logged_malloc(new_scale*64);
+	}
 	strcpy((char *)ret, (const char *)res);
 	SQL3_RESET_json_set_s();
 	return ret;
@@ -177,6 +234,36 @@ fith_json_set_i(u8 *json, u8 *key, s64 val)
 }
 
 static u8 *
+fith_json_set_i_internal(u8 *json, u8 *key, s64 val)
+{
+	const u8 *res;
+	u8 *ret;
+	u32 json_length, j_scale, new_scale;
+	u8 buff[256];
+	
+	json_length=strlen((const char *)json);
+	j_scale=json_length/64+1;
+	buff[0]='$';
+	buff[1]=0;
+	strcat((char *)buff,(const char *)key);
+	
+	SQL3_BIND_json_set_i();
+	
+	SQL3_STEP_json_set_i();
+	SQL3_COL_json_set_i();
+	// res now holds string
+	new_scale=strlen((const char *)res)/64+1;
+	if((json_length>2)&&(j_scale>=new_scale)) { // not a new json creation
+		ret = json;
+	} else { // new or previous size too small
+		ret = logged_malloc(new_scale*64);
+	}
+	strcpy((char *)ret, (const char *)res);
+	SQL3_RESET_json_set_i();
+	return ret;
+}
+
+static u8 *
 fith_json_set_d(u8 *json, u8 *key, f64 val)
 {
 	u8 buff[256];
@@ -198,6 +285,36 @@ fith_json_set_d(u8 *json, u8 *key, f64 val)
 	SQL3_STEP_json_set_d();
 	SQL3_COL_json_set_d();
 	ret = logged_malloc(((strlen((const char *)res)/64+1)*64));
+	strcpy((char *)ret, (const char *)res);
+	SQL3_RESET_json_set_d();
+	return ret;
+}
+
+static u8 *
+fith_json_set_d_internal(u8 *json, u8 *key, f64 val)
+{
+	const u8 *res;
+	u8 *ret;
+	u32 json_length, j_scale, new_scale;
+	u8 buff[256];
+	
+	json_length=strlen((const char *)json);
+	j_scale=json_length/64+1;
+	buff[0]='$';
+	buff[1]=0;
+	strcat((char *)buff,(const char *)key);
+	
+	SQL3_BIND_json_set_d();
+	
+	SQL3_STEP_json_set_d();
+	SQL3_COL_json_set_d();
+	// res now holds string
+	new_scale=strlen((const char *)res)/64+1;
+	if((json_length>2)&&(j_scale>=new_scale)) { // not a new json creation
+		ret = json;
+	} else { // new or previous size too small
+		ret = logged_malloc(new_scale*64);
+	}
 	strcpy((char *)ret, (const char *)res);
 	SQL3_RESET_json_set_d();
 	return ret;

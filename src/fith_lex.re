@@ -37,14 +37,19 @@
 	dollar =     "$";
 	semi =     ";";
 	function =   "fn";
-	function_call = [a-zA-Z_][a-zA-Z_0-9?]*;
-	function_call_addr = [a-zA-Z_][a-zA-Z_0-9?]*"@";
-	function_definition = [a-zA-Z_][a-zA-Z_0-9?]* ":";
+	function_call = [a-zA-Z_][a-zA-Z_0-9?-]*;
+	function_call_addr = [a-zA-Z_][a-zA-Z_0-9?-]*"@";
+	function_definition = [a-zA-Z_][a-zA-Z_0-9?-]* ":";
 	var = "$" function_call; // push value on stack, if exists
 	var_json_action = "$" [a-zA-Z_][a-zA-Z_0-9?]* ".j."; // push value on stack, if exists
 	var_assign = "=$" function_call; // pop top of stack and assign to value, create variable
-	var_create_json_o = "=$" function_call ".jo"; // create JSON value
-	var_create_json_a = "=$" function_call ".ja"; // create JSON value
+	// json get
+	var_get_json = "$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+; // get JSON string
+	// json set
+	var_assign_json_s = "=$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+".s"; // assign JSON string
+	var_assign_json_i = "=$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+".i"; // assign JSON string
+	var_assign_json_d = "=$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+".d"; // assign JSON string
+	var_assign_json_j = "=$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+".j"; // assign JSON string
 	var_addr = "@" function_call; // push address on stack
 
 	
@@ -823,7 +828,7 @@ loop: // label for looping within the lexxer
 		start+=1;
 		(p_s->stk+1)->i = get_variable(start, (YYCURSOR - start), &p_s->stk->i);
 		if (p_s->stk->s==0){
-			printf("Cannot find function name!!!");
+			printf("Cannot find variable name!!!");
 			print_code(start, (YYCURSOR - start));
 			fputc ('\n', stdout);
 			goto loop;
@@ -831,22 +836,7 @@ loop: // label for looping within the lexxer
 		INCREMENT_STACK
 		goto loop;
 	}
-	
-	//~ "$" [a-zA-Z_][a-zA-Z_0-9?]* ".j.set" {
-		//~ start+=1;
-		//~ (p_s->stk+1)->i = get_variable(start, (YYCURSOR - start), &p_s->stk->i);
-		//~ if (p_s->stk->s==0){
-			//~ printf("Cannot find function name!!!");
-			//~ print_code(start, (YYCURSOR - start));
-			//~ fputc ('\n', stdout);
-			//~ goto loop;
-		//~ }
-		//~ DECREMENT_STACK
-		//~ DECREMENT_STACK
-		
-		//~ goto loop;
-	//~ }
-	
+
 	var_assign {
 		start+=2;
 		DECREMENT_STACK
@@ -854,7 +844,170 @@ loop: // label for looping within the lexxer
 		save_variable(start, (YYCURSOR - start), p_s->stk->i);
 		goto loop;
 	}
+
+	var_get_json {
+		start+=1;
+		(p_s->stk+3)->i=1;
+		while((start[(p_s->stk+3)->i]!='.')&&(start[(p_s->stk+3)->i]!='[')){
+			(p_s->stk+3)->i++;
+		}
+		// (p_s->stk+3)->i is now the length
+		
+		// get variable value
+		(p_s->stk+2)->i = get_variable(start, (p_s->stk+3)->i, &(p_s->stk+1)->i);
+		if ((p_s->stk+2)->i==0){
+			printf("Cannot find variable name!!!");
+			print_code(start, (YYCURSOR - start));
+			fputc ('\n', stdout);
+			goto loop;
+		}
+		// need str ptr and length of search path
+		(p_s->stk+4)->s = &start[(p_s->stk+3)->i];
+		(p_s->stk+2)->i = *YYCURSOR; // save off ending
+		*YYCURSOR = 0; // null terminate
+		(p_s->stk+3)->i = fith_json_extract((p_s->stk+1)->s, // json
+											(p_s->stk+4)->s, // key
+											p_s->stk);   // value
+		if ((p_s->stk+3)->i){
+			printf("json_extract error!!!\n");
+		}
+		*YYCURSOR = (p_s->stk+2)->i;
+		INCREMENT_STACK
+		goto loop;
+	}
+
+	var_assign_json_s {
+		start+=2;
+		DECREMENT_STACK
+		(p_s->stk+3)->i=1;
+		while((start[(p_s->stk+3)->i]!='.')&&(start[(p_s->stk+3)->i]!='[')){
+			(p_s->stk+3)->i++;
+		}
+		// (p_s->stk+3)->i is now the length
+		
+		// get variable value
+		(p_s->stk+2)->i = get_variable(start, (p_s->stk+3)->i, &(p_s->stk+1)->i);
+		if ((p_s->stk+2)->i==0){
+			// no variable exists yet, check start to determine
+			// if an array or an object should be created
+			if (start[(p_s->stk+3)->i]=='.'){
+				(p_s->stk+1)->s = (u8*)"{}";
+			} else {
+				(p_s->stk+1)->s = (u8*)"[]";
+			}
+		}
+		// need str ptr and length of search path
+		(p_s->stk+4)->s = &start[(p_s->stk+3)->i];
+		(p_s->stk+2)->i = *(YYCURSOR-2); // save off ending
+		*(YYCURSOR-2) = 0; // null terminate
+		p_s->stk->s = fith_json_set_s_internal((p_s->stk+1)->s,   // json
+										(p_s->stk+4)->s, // key
+										p_s->stk->s);    // value
+		*(YYCURSOR-2) = (p_s->stk+2)->i;
+		// will try to insert unique name, if fails will update value only
+		save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
+		goto loop;
+	}
 	
+	var_assign_json_j {
+		start+=2;
+		DECREMENT_STACK
+		(p_s->stk+3)->i=1;
+		while((start[(p_s->stk+3)->i]!='.')&&(start[(p_s->stk+3)->i]!='[')){
+			(p_s->stk+3)->i++;
+		}
+		// (p_s->stk+3)->i is now the length
+		
+		// get variable value
+		(p_s->stk+2)->i = get_variable(start, (p_s->stk+3)->i, &(p_s->stk+1)->i);
+		if ((p_s->stk+2)->i==0){
+			// no variable exists yet, check start to determine
+			// if an array or an object should be created
+			if (start[(p_s->stk+3)->i]=='.'){
+				(p_s->stk+1)->s = (u8*)"{}";
+			} else {
+				(p_s->stk+1)->s = (u8*)"[]";
+			}
+		}
+		// need str ptr and length of search path
+		(p_s->stk+4)->s = &start[(p_s->stk+3)->i];
+		(p_s->stk+2)->i = *(YYCURSOR-2); // save off ending
+		*(YYCURSOR-2) = 0; // null terminate
+		p_s->stk->s = fith_json_set_j_internal((p_s->stk+1)->s,   // json
+										(p_s->stk+4)->s, // key
+										p_s->stk->s);    // value
+		*(YYCURSOR-2) = (p_s->stk+2)->i;
+		// will try to insert unique name, if fails will update value only
+		save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
+		goto loop;
+	}
+	
+	var_assign_json_i {
+		start+=2;
+		DECREMENT_STACK
+		(p_s->stk+3)->i=1;
+		while((start[(p_s->stk+3)->i]!='.')&&(start[(p_s->stk+3)->i]!='[')){
+			(p_s->stk+3)->i++;
+		}
+		// (p_s->stk+3)->i is now the length
+		
+		// get variable value
+		(p_s->stk+2)->i = get_variable(start, (p_s->stk+3)->i, &(p_s->stk+1)->i);
+		if ((p_s->stk+2)->i==0){
+			// no variable exists yet, check start to determine
+			// if an array or an object should be created
+			if (start[(p_s->stk+3)->i]=='.'){
+				(p_s->stk+1)->s = (u8*)"{}";
+			} else {
+				(p_s->stk+1)->s = (u8*)"[]";
+			}
+		}
+		// need str ptr and length of search path
+		(p_s->stk+4)->s = &start[(p_s->stk+3)->i];
+		(p_s->stk+2)->i = *(YYCURSOR-2); // save off ending
+		*(YYCURSOR-2) = 0; // null terminate
+		p_s->stk->s = fith_json_set_i_internal((p_s->stk+1)->s,   // json
+										(p_s->stk+4)->s, // key
+										p_s->stk->i);    // value
+		*(YYCURSOR-2) = (p_s->stk+2)->i;
+		// will try to insert unique name, if fails will update value only
+		save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
+		goto loop;
+	}
+	
+	var_assign_json_d {
+		start+=2;
+		DECREMENT_STACK
+		(p_s->stk+3)->i=1;
+		while((start[(p_s->stk+3)->i]!='.')&&(start[(p_s->stk+3)->i]!='[')){
+			(p_s->stk+3)->i++;
+		}
+		// (p_s->stk+3)->i is now the length
+		
+		// get variable value
+		(p_s->stk+2)->i = get_variable(start, (p_s->stk+3)->i, &(p_s->stk+1)->i);
+		if ((p_s->stk+2)->i==0){
+			// no variable exists yet, check start to determine
+			// if an array or an object should be created
+			if (start[(p_s->stk+3)->i]=='.'){
+				(p_s->stk+1)->s = (u8*)"{}";
+			} else {
+				(p_s->stk+1)->s = (u8*)"[]";
+			}
+		}
+		// need str ptr and length of search path
+		(p_s->stk+4)->s = &start[(p_s->stk+3)->i];
+		(p_s->stk+2)->i = *(YYCURSOR-2); // save off ending
+		*(YYCURSOR-2) = 0; // null terminate
+		p_s->stk->s = fith_json_set_d_internal((p_s->stk+1)->s,   // json
+										(p_s->stk+4)->s, // key
+										p_s->stk->d);    // value
+		*(YYCURSOR-2) = (p_s->stk+2)->i;
+		// will try to insert unique name, if fails will update value only
+		save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
+		goto loop;
+	}
+
 	function_call {
 		//get_function_addr
 		p_s->stk->s = (u8 *)get_function_addr(start, (YYCURSOR - start));
