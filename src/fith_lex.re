@@ -17,13 +17,13 @@
 	frc = [0-9]* "." [0-9]+ | [0-9]+ ".";
 	exp = 'e' [+-]? [0-9]+;
 	flt = (frc exp? | [0-9]+ exp) [fFlL]?;
-	string_lit = ["] ([^"\x00\x03] | ([\\] ["]))* ["];
+	string_lit = ['] ([^'\x00\x03] | ([\\] [']))* ['];
 	//string_lit_chain = string_lit ([ \n\t\r]* string_lit)+;
 	//string_lit_chain = ([^"\n] | ([\\] ["]))* ("\n" | ["]);
-	string_lit_chain = ([^"\n] | ([\\] ["]))* "\n";
-	string_lit_end = ([^"\n] | ([\\] ["]))* ["];
-	mangled_string_lit = ["] ([^"\x00\x03] | ([\\] ["]))* "\x00";
-	char_lit = ['] ([^'\x03] | ([\\] [']))* ['];
+	string_lit_chain = ([^'\n] | ([\\] [']))* "\n";
+	string_lit_end = ([^'\n] | ([\\] [']))* ['];
+	mangled_string_lit = ['] ([^'\x00\x03] | ([\\] [']))* "\x00";
+	char_lit = [`] ([^`\x03] | ([\\] [`]))* [`];
 	integer = oct | dec | hex;
 	lblock =     "{";
 	rblock =     "}";
@@ -41,15 +41,14 @@
 	function_call_addr = [a-zA-Z_][a-zA-Z_0-9?-]*"@";
 	function_definition = [a-zA-Z_][a-zA-Z_0-9?-]* ":";
 	var = "$" function_call; // push value on stack, if exists
-	var_json_action = "$" [a-zA-Z_][a-zA-Z_0-9?]* ".j."; // push value on stack, if exists
 	var_assign = "=$" function_call; // pop top of stack and assign to value, create variable
 	// json get
-	var_get_json = "$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+; // get JSON string
+	var_get_json = "$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+; // get JSON string
 	// json set
-	var_assign_json_s = "=$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+".s"; // assign JSON string
-	var_assign_json_i = "=$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+".i"; // assign JSON string
-	var_assign_json_d = "=$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+".d"; // assign JSON string
-	var_assign_json_j = "=$" function_call ("."|"[")([a-zA-Z_0-9?.[-]|"]")+".j"; // assign JSON string
+	var_assign_json_s = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".s"; // assign JSON string
+	var_assign_json_i = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".i"; // assign JSON string
+	var_assign_json_d = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".d"; // assign JSON string
+	var_assign_json_j = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".j"; // assign JSON string
 	var_addr = "@" function_call; // push address on stack
 
 	
@@ -137,6 +136,7 @@ static int lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else) // YYCURSOR is d
 	/*const*/ u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
 	/*const*/ //u8 * start;
 	u32 num_ifs=0;
+	u32 num_je=0;
 	
 	YYCURSOR = *YYCURSOR_p;
 
@@ -186,6 +186,20 @@ loop: // label for looping within the lexxer
 			return 0;
 		}
 		num_ifs--;
+		goto loop;
+	}
+	
+	"jeach" {
+		num_je++;
+		goto loop;
+	}
+	
+	"jdone" {
+		if ( (is_else==3) && (num_je==0) ){
+			*YYCURSOR_p = YYCURSOR;
+			return 0;
+		}
+		num_je--;
 		goto loop;
 	}
 
@@ -285,7 +299,7 @@ loop: // label for looping within the lexxer
 		// pop command stack
 		p_s->cstk--;
 		// goto to return address
-		YYCURSOR = *p_s->cstk;
+		YYCURSOR = p_s->cstk->s;
 		goto loop;
 	}
 	
@@ -546,7 +560,7 @@ loop: // label for looping within the lexxer
 	}
 	
 	"begin" {
-		*p_s->cstk = YYCURSOR;
+		p_s->cstk->s = YYCURSOR;
 		p_s->cstk++;
 		goto loop;
 	}
@@ -554,10 +568,48 @@ loop: // label for looping within the lexxer
 	"until" {
 		DECREMENT_STACK
 		if(p_s->stk->i==0){
-			YYCURSOR = *(p_s->cstk-1);
+			YYCURSOR = (p_s->cstk-1)->s;
 		} else {
 			p_s->cstk--;
 		}
+		goto loop;
+	}
+
+	// new loop to go over values in an object or an array
+	"jeach" { // json is on top of the stack
+		
+		// begin json work
+		(p_s->stk+1)->i = fith_json_each((p_s->stk-1)->s, // json
+										  p_s->stk,
+										  (p_s->stk+2));   // value
+		// check for early exit
+		if((p_s->stk+1)->i==0){
+			YYCURSOR-=lex_if_else(&YYCURSOR, 3);
+			goto loop;
+		}
+		// save off data in control stack
+		// set up jump back
+		p_s->cstk->s = YYCURSOR;
+		p_s->cstk++;
+		// save off json for loop
+		p_s->cstk->s = (p_s->stk-1)->s;
+		p_s->cstk++;
+		// overwrite json pointer for with first value
+		(p_s->stk-1)->i = p_s->stk->i;
+		goto loop;
+	}
+
+	"jdone" { // condition not based on data stack
+		// begin json work
+		//~ (p_s->stk+1)->i = fith_json_each_step((p_s->cstk-1)->s, // control stack hidden json
+											//~ p_s->stk);   // value
+	
+		if((p_s->stk+1)->i!=0){
+			YYCURSOR = (p_s->cstk-1)->s;
+		} else {
+			p_s->cstk--;
+		}
+		INCREMENT_STACK
 		goto loop;
 	}
 	
@@ -578,7 +630,7 @@ loop: // label for looping within the lexxer
 		if (p_s->stk->i < 0){
 			printf("Fork error!!!");
 		} else if (p_s->stk->i == 0) {
-			*p_s->cstk = (u8*)"exit";
+			p_s->cstk->s = (u8*)"exit";
 			p_s->cstk++;
 			// jump to function
 			YYCURSOR = (p_s->stk-1)->s;
@@ -1018,7 +1070,7 @@ loop: // label for looping within the lexxer
 			goto loop;
 		}
 		// save off return
-		*p_s->cstk = YYCURSOR;
+		p_s->cstk->s = YYCURSOR;
 		p_s->cstk++;
 		// jump to function
 		YYCURSOR = p_s->stk->s;

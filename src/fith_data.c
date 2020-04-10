@@ -90,6 +90,66 @@ fith_json_extract(u8 *json, u8 *key, Data *val)
 	return 0;
 }
 
+static s64
+fith_json_each(u8 *json, Data *val, Data *sql)
+{
+	const u8 *res;
+	u8 *ret;
+	s64 step;
+	
+	//~ sqlite3_stmt * s;
+//~ const char * t = fdb_SETUPTEXT;
+//~ for (int i=0;i < 4; i++){
+	//~ sqlite3_prepare_v2(fdb,  t, -1, &s, &t);
+	//~ sqlite3_step(s);
+	//~ sqlite3_finalize(s);
+	
+	SQL3_QUERY_json_each(fdb,
+		"SELECT =?t:res json_each.type,json_each.value FROM json_each(?t@json);");
+	
+	SQL3_BIND_json_each();
+	
+	/* prepare SQL query */
+	step = SQL3_STEP_json_each();
+	if ((step = (step == SQLITE_ROW))) {
+		SQL3_COL_json_extract();
+		switch(res[0]) {
+			case 0:   // NULL
+			res = (const u8 *)"NULL";
+			goto copy_exit;
+			case 'a': // array
+			goto text_exit;
+			case 'f': // false
+			goto copy_exit;
+			case 'i': // integer
+			val->i=sqlite3_column_int64(fdb_stmt_array[fdb_enum3], 1);
+			goto reset_exit;
+			case 'n': // null
+			goto copy_exit;
+			case 'o': // object
+			goto text_exit;
+			case 'r': // real
+			val->d=sqlite3_column_double(fdb_stmt_array[fdb_enum3], 1);
+			goto reset_exit;
+			case 't': // true or text
+			if (res[1]=='r') { // true
+				goto copy_exit;
+			}
+			goto text_exit;
+			default: return -1;
+		}
+		text_exit:
+		res=sqlite3_column_text(fdb_stmt_array[fdb_enum3], 1);
+		copy_exit:
+		ret = logged_malloc(((strlen((const char *)res)/64+1)*64));
+		strcpy((char *)ret, (const char *)res);
+		val->s = ret;
+	}
+	reset_exit:
+	//SQL3_RESET_json_extract();
+	return step;
+}
+
 //TODO stay below
 
 static u8 *

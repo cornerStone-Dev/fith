@@ -72,7 +72,7 @@ typedef struct parser_s{
 	Data *        stk_end;
 	Data *        vars;
 	stringLitList *strList;
-	u8 **         cstk;
+	Data *        cstk;
 	u8 **         words;
 	u8 *          buff;
 	u8 *          buff_start;
@@ -182,7 +182,7 @@ int main(int argc, char **argv)
 	//unsigned char file_name_buff[512] = {0};
 	unsigned char * output = output_string;
 	u8 dirName[512];
-	u8 * cstack[64]={0};
+	Data cstack[128]={0};
 	u8 * words[128]={0};
 	u8 * dirName_p;
 	Token token = {0};
