@@ -137,8 +137,9 @@ $jsonObj p
 =$jsonAr[#].i 
 =$jsonAr[#].i 
 =$jsonAr[#].i =$jsonAr[#].i 'done' =$jsonAr[#].s $jsonAr p
-'[1,2,3,4,5]' p
-
+'[1,2,3,4,5]' . jeach jdone . clear
+'[1.0,2.0,3.0,4.0,5.0]' jeach jdone f. clear 
+'[[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5]]' jeach jeach jdone jdone . clear
 
 
 

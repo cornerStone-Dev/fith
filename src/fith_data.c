@@ -90,29 +90,33 @@ fith_json_extract(u8 *json, u8 *key, Data *val)
 	return 0;
 }
 
+
+#define JEACH_TEXT "SELECT json_each.type,json_each.value FROM json_each(?);"
 static s64
-fith_json_each(u8 *json, Data *val, Data *sql)
+fith_json_each(u8 *json, Data *val, sqlite3_stmt **sql)
 {
 	const u8 *res;
 	u8 *ret;
 	s64 step;
+	sqlite3_stmt *s;
 	
-	//~ sqlite3_stmt * s;
-//~ const char * t = fdb_SETUPTEXT;
-//~ for (int i=0;i < 4; i++){
-	//~ sqlite3_prepare_v2(fdb,  t, -1, &s, &t);
-	//~ sqlite3_step(s);
-	//~ sqlite3_finalize(s);
-	
-	SQL3_QUERY_json_each(fdb,
-		"SELECT =?t:res json_each.type,json_each.value FROM json_each(?t@json);");
-	
-	SQL3_BIND_json_each();
+	if (*sql)
+	{
+		s=*sql;
+	} else {
+		sqlite3_prepare_v2(fdb,
+						JEACH_TEXT,
+						sizeof JEACH_TEXT-1,
+						&s,
+						0);
+		sqlite3_bind_text(s, 1, (const char *)json, -1, SQLITE_TRANSIENT);
+		*sql=s;
+	}
 	
 	/* prepare SQL query */
-	step = SQL3_STEP_json_each();
+	step = sqlite3_step(s);
 	if ((step = (step == SQLITE_ROW))) {
-		SQL3_COL_json_extract();
+		res=sqlite3_column_text(s, 0);
 		switch(res[0]) {
 			case 0:   // NULL
 			res = (const u8 *)"NULL";
@@ -122,14 +126,14 @@ fith_json_each(u8 *json, Data *val, Data *sql)
 			case 'f': // false
 			goto copy_exit;
 			case 'i': // integer
-			val->i=sqlite3_column_int64(fdb_stmt_array[fdb_enum3], 1);
+			val->i=sqlite3_column_int64(s, 1);
 			goto reset_exit;
 			case 'n': // null
 			goto copy_exit;
 			case 'o': // object
 			goto text_exit;
 			case 'r': // real
-			val->d=sqlite3_column_double(fdb_stmt_array[fdb_enum3], 1);
+			val->d=sqlite3_column_double(s, 1);
 			goto reset_exit;
 			case 't': // true or text
 			if (res[1]=='r') { // true
@@ -139,14 +143,13 @@ fith_json_each(u8 *json, Data *val, Data *sql)
 			default: return -1;
 		}
 		text_exit:
-		res=sqlite3_column_text(fdb_stmt_array[fdb_enum3], 1);
+		res=sqlite3_column_text(s, 1);
 		copy_exit:
 		ret = logged_malloc(((strlen((const char *)res)/64+1)*64));
 		strcpy((char *)ret, (const char *)res);
 		val->s = ret;
 	}
 	reset_exit:
-	//SQL3_RESET_json_extract();
 	return step;
 }
 

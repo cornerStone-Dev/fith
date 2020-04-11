@@ -577,39 +577,37 @@ loop: // label for looping within the lexxer
 
 	// new loop to go over values in an object or an array
 	"jeach" { // json is on top of the stack
-		
+		// cstack where sql statement will be saved
+		(p_s->cstk+1)->s=0;
 		// begin json work
-		(p_s->stk+1)->i = fith_json_each((p_s->stk-1)->s, // json
-										  p_s->stk,
-										  (p_s->stk+2));   // value
+		p_s->stk->i = fith_json_each((p_s->stk-1)->s, // json
+									(p_s->stk-1),       // value output
+									(sqlite3_stmt **)(p_s->cstk+1)); // sql
 		// check for early exit
-		if((p_s->stk+1)->i==0){
+		if(p_s->stk->i==0){
 			YYCURSOR-=lex_if_else(&YYCURSOR, 3);
 			goto loop;
 		}
 		// save off data in control stack
 		// set up jump back
 		p_s->cstk->s = YYCURSOR;
-		p_s->cstk++;
-		// save off json for loop
-		p_s->cstk->s = (p_s->stk-1)->s;
-		p_s->cstk++;
-		// overwrite json pointer for with first value
-		(p_s->stk-1)->i = p_s->stk->i;
+		p_s->cstk+=2;
 		goto loop;
 	}
 
 	"jdone" { // condition not based on data stack
 		// begin json work
-		//~ (p_s->stk+1)->i = fith_json_each_step((p_s->cstk-1)->s, // control stack hidden json
-											//~ p_s->stk);   // value
-	
-		if((p_s->stk+1)->i!=0){
-			YYCURSOR = (p_s->cstk-1)->s;
+		(p_s->stk+1)->i = fith_json_each(0, // json
+									p_s->stk,       // value output
+									(sqlite3_stmt **)(p_s->cstk-1)); // sql
+		// 0 if done
+		if((p_s->stk+1)->i==0){
+			sqlite3_finalize((sqlite3_stmt *)(p_s->cstk-1)->s);
+			p_s->cstk-=2;
 		} else {
-			p_s->cstk--;
+			YYCURSOR = (p_s->cstk-2)->s;
+			INCREMENT_STACK
 		}
-		INCREMENT_STACK
 		goto loop;
 	}
 	
@@ -628,7 +626,7 @@ loop: // label for looping within the lexxer
 		// return stack modified to exit, returns pid
 		p_s->stk->i = fork();
 		if (p_s->stk->i < 0){
-			printf("Fork error!!!");
+			printf("Fork error!!!\n");
 		} else if (p_s->stk->i == 0) {
 			p_s->cstk->s = (u8*)"exit";
 			p_s->cstk++;
