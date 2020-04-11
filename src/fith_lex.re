@@ -527,6 +527,12 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	"dep" {
+		p_s->stk->i = p_s->stk-p_s->stk_start;
+		INCREMENT_STACK
+		goto loop;
+	}
+	
 	"swap" {
 		p_s->stk->i = (p_s->stk-2)->i;
 		(p_s->stk-2)->i = (p_s->stk-1)->i;
@@ -950,9 +956,35 @@ loop: // label for looping within the lexxer
 		(p_s->stk+4)->s = &start[(p_s->stk+3)->i];
 		(p_s->stk+2)->i = *(YYCURSOR-2); // save off ending
 		*(YYCURSOR-2) = 0; // null terminate
-		p_s->stk->s = fith_json_set_s_internal((p_s->stk+1)->s,   // json
-										(p_s->stk+4)->s, // key
-										p_s->stk->s);    // value
+		// check for "[?]"
+		if ((*(YYCURSOR-4)=='?')&&(*(YYCURSOR-3)==']')&&(*(YYCURSOR-5)=='[')){
+			if(p_s->stk-p_s->stk_start<p_s->stk->i){
+				printf("stack underflow [?] operator avoided!!!\n");
+				goto loop;
+			}
+			*(YYCURSOR-4)='#';
+			(p_s->stk+5)->i=p_s->stk->i;
+			p_s->stk->s=(p_s->stk+1)->s;
+			for (u32 x = (p_s->stk+5)->i; x!=0; x--)
+			{
+				p_s->stk->s = fith_json_set_s_internal(p_s->stk->s,   // json
+														(p_s->stk+4)->s, // key
+														(p_s->stk-x)->s);    // value
+			}
+			// put qmark back
+			*(YYCURSOR-4)='?';
+			*(YYCURSOR-2) = (p_s->stk+2)->i;
+			// will try to insert unique name, if fails will update value only
+			save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
+			// decrease stack, safety check above
+			p_s->stk-=(p_s->stk+5)->i;
+			goto loop;
+		} else {
+			
+			p_s->stk->s = fith_json_set_s_internal((p_s->stk+1)->s,   // json
+											(p_s->stk+4)->s, // key
+											p_s->stk->s);    // value
+		}
 		*(YYCURSOR-2) = (p_s->stk+2)->i;
 		// will try to insert unique name, if fails will update value only
 		save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
@@ -983,9 +1015,35 @@ loop: // label for looping within the lexxer
 		(p_s->stk+4)->s = &start[(p_s->stk+3)->i];
 		(p_s->stk+2)->i = *(YYCURSOR-2); // save off ending
 		*(YYCURSOR-2) = 0; // null terminate
-		p_s->stk->s = fith_json_set_j_internal((p_s->stk+1)->s,   // json
-										(p_s->stk+4)->s, // key
-										p_s->stk->s);    // value
+		// check for "[?]"
+		if ((*(YYCURSOR-4)=='?')&&(*(YYCURSOR-3)==']')&&(*(YYCURSOR-5)=='[')){
+			if(p_s->stk-p_s->stk_start<p_s->stk->i){
+				printf("stack underflow [?] operator avoided!!!\n");
+				goto loop;
+			}
+			*(YYCURSOR-4)='#';
+			(p_s->stk+5)->i=p_s->stk->i;
+			p_s->stk->s=(p_s->stk+1)->s;
+			for (u32 x = (p_s->stk+5)->i; x!=0; x--)
+			{
+				p_s->stk->s = fith_json_set_j_internal(p_s->stk->s,   // json
+														(p_s->stk+4)->s, // key
+														(p_s->stk-x)->s);    // value
+			}
+			// put qmark back
+			*(YYCURSOR-4)='?';
+			*(YYCURSOR-2) = (p_s->stk+2)->i;
+			// will try to insert unique name, if fails will update value only
+			save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
+			// decrease stack, safety check above
+			p_s->stk-=(p_s->stk+5)->i;
+			goto loop;
+		} else {
+			
+			p_s->stk->s = fith_json_set_j_internal((p_s->stk+1)->s,   // json
+											(p_s->stk+4)->s, // key
+											p_s->stk->s);    // value
+		}
 		*(YYCURSOR-2) = (p_s->stk+2)->i;
 		// will try to insert unique name, if fails will update value only
 		save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
@@ -1016,9 +1074,35 @@ loop: // label for looping within the lexxer
 		(p_s->stk+4)->s = &start[(p_s->stk+3)->i];
 		(p_s->stk+2)->i = *(YYCURSOR-2); // save off ending
 		*(YYCURSOR-2) = 0; // null terminate
-		p_s->stk->s = fith_json_set_i_internal((p_s->stk+1)->s,   // json
-										(p_s->stk+4)->s, // key
-										p_s->stk->i);    // value
+		// check for "[?]"
+		if ((*(YYCURSOR-4)=='?')&&(*(YYCURSOR-3)==']')&&(*(YYCURSOR-5)=='[')){
+			if(p_s->stk-p_s->stk_start<p_s->stk->i){
+				printf("stack underflow [?] operator avoided!!!\n");
+				goto loop;
+			}
+			*(YYCURSOR-4)='#';
+			(p_s->stk+5)->i=p_s->stk->i;
+			p_s->stk->s=(p_s->stk+1)->s;
+			for (u32 x = (p_s->stk+5)->i; x!=0; x--)
+			{
+				p_s->stk->s = fith_json_set_i_internal(p_s->stk->s,   // json
+														(p_s->stk+4)->s, // key
+														(p_s->stk-x)->i);    // value
+			}
+			// put qmark back
+			*(YYCURSOR-4)='?';
+			*(YYCURSOR-2) = (p_s->stk+2)->i;
+			// will try to insert unique name, if fails will update value only
+			save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
+			// decrease stack, safety check above
+			p_s->stk-=(p_s->stk+5)->i;
+			goto loop;
+		} else {
+			
+			p_s->stk->s = fith_json_set_i_internal((p_s->stk+1)->s,   // json
+											(p_s->stk+4)->s, // key
+											p_s->stk->i);    // value
+		}
 		*(YYCURSOR-2) = (p_s->stk+2)->i;
 		// will try to insert unique name, if fails will update value only
 		save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
@@ -1049,9 +1133,35 @@ loop: // label for looping within the lexxer
 		(p_s->stk+4)->s = &start[(p_s->stk+3)->i];
 		(p_s->stk+2)->i = *(YYCURSOR-2); // save off ending
 		*(YYCURSOR-2) = 0; // null terminate
-		p_s->stk->s = fith_json_set_d_internal((p_s->stk+1)->s,   // json
-										(p_s->stk+4)->s, // key
-										p_s->stk->d);    // value
+		// check for "[?]"
+		if ((*(YYCURSOR-4)=='?')&&(*(YYCURSOR-3)==']')&&(*(YYCURSOR-5)=='[')){
+			if(p_s->stk-p_s->stk_start<p_s->stk->i){
+				printf("stack underflow [?] operator avoided!!!\n");
+				goto loop;
+			}
+			*(YYCURSOR-4)='#';
+			(p_s->stk+5)->i=p_s->stk->i;
+			p_s->stk->s=(p_s->stk+1)->s;
+			for (u32 x = (p_s->stk+5)->i; x!=0; x--)
+			{
+				p_s->stk->s = fith_json_set_d_internal(p_s->stk->s,   // json
+														(p_s->stk+4)->s, // key
+														(p_s->stk-x)->d);    // value
+			}
+			// put qmark back
+			*(YYCURSOR-4)='?';
+			*(YYCURSOR-2) = (p_s->stk+2)->i;
+			// will try to insert unique name, if fails will update value only
+			save_variable(start, (p_s->stk+3)->i, p_s->stk->i);
+			// decrease stack, safety check above
+			p_s->stk-=(p_s->stk+5)->i;
+			goto loop;
+		} else {
+			
+			p_s->stk->s = fith_json_set_d_internal((p_s->stk+1)->s,   // json
+											(p_s->stk+4)->s, // key
+											p_s->stk->d);    // value
+		}
 		*(YYCURSOR-2) = (p_s->stk+2)->i;
 		// will try to insert unique name, if fails will update value only
 		save_variable(start, (p_s->stk+3)->i, p_s->stk->i);

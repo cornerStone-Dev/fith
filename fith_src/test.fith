@@ -140,6 +140,42 @@ $jsonObj p
 '[1,2,3,4,5]' . jeach jdone . clear
 '[1.0,2.0,3.0,4.0,5.0]' jeach jdone f. clear 
 '[[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5]]' jeach jeach jdone jdone . clear
+'{"bob":"john","bob1":"john","bob2":"john","bob4":"john"}'  jeach jdone p p p p
+
+
+\'1' =$jsonAr2[#].s $jsonAr2 p
+'a' 'v' 'd' 'f' 'd' dep . =$jsonAr2[?].s $jsonAr2 p
+
+1 2 3 4 5 dep . =$jsonAr3[?].i $jsonAr3 p $jsonAr3 jeach jdone . clear
+ 
+\ 1 2 3 4 5 depth =$var[?].i puts it all into array
+ \~ \## REQUEST FOR COMMENT
+\~ jeach \ goes once per element in array, pushes JSON value onto stack
+	\~ ( value is on top of the stack )
+	\~ ( do stuffs )
+\~ jdone
+\~ jeach \ goes once per element in array
+	\~ 5 2.2 
+	\~ jeach.a ( this pushes value on stack )
+\~ jdone
+
+\~ jeach
+	\~ jeach.a 
+	\~ jeach
+		\~ jeach.b
+	\~ jdone
+\~ jdone
+
+
+
+		( x1 x2 x3 -- )
+		( #var1=x1 #var2=x2 #var3=x3 )
+\~ fact: { #var1 #var2 #var3 } 
+	\~ dup 1 > if                     \ if 1 (or 0) \just leave on stack
+		\~ dup 1 - fact               \ next number down - get its factorial
+		 \~ * then                     \ and mult - leavin ans on stack
+\~ ;
+
 
 
 
