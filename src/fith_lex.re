@@ -883,7 +883,7 @@ loop: // label for looping within the lexxer
 	var {
 		start+=1;
 		(p_s->stk+1)->i = get_variable(start, (YYCURSOR - start), &p_s->stk->i);
-		if (p_s->stk->s==0){
+		if ((p_s->stk+1)->i==0){
 			printf("Cannot find variable name!!!");
 			print_code(start, (YYCURSOR - start));
 			fputc ('\n', stdout);
