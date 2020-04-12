@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <time.h>
+#include <termios.h>
 
 #include "std_types.h"
 
@@ -121,17 +122,232 @@ leave_scope(ScopeList * restrict scope_l);
 //~ static u32 
 //~ safe_atol_64(const u8 ** strp);
 
+static struct termios termios_orig;
+
+void
+raw_begin(void)
+{
+    tcgetattr(STDIN_FILENO, &termios_orig);
+    struct termios raw;
+    memcpy(&raw, &termios_orig, sizeof(raw));
+    raw.c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
+    raw.c_oflag &= ~OPOST;
+    raw.c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
+    raw.c_cflag &= ~(CSIZE|PARENB);
+    raw.c_cflag |= CS8;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+}
+
+void
+raw_end(void)
+{
+    tcsetattr(STDIN_FILENO, TCSANOW, &termios_orig);
+}
+
 static void
 print_code(const u8 *str, u32 len)
 {
+	//printf("len: %d end\n", len);
 	for(u32 x=0; x<len; x++){
 		if(str[x]=='\000') {
-			fputc ('"', stdout);
+			fputc ('\'', stdout);
 			continue;
 		}
+		//~ if(str[x]==13) {
+			//~ fputc ('[', stdout);
+			//~ fputc ('\\', stdout);
+			//~ fputc ('n', stdout);
+			//~ fputc (']', stdout);
+			//~ continue;
+		//~ }
+		//fputc ('[', stdout);
 		fputc (str[x], stdout);
+		//fputc (']', stdout);
 	}
 	//fputc ('\n', stdout);
+}
+
+// new strat: manage buffer only, then regen current line every time
+static s32
+fith_fgets(u8 *string, u32 limit, u8 *history)
+{
+	//u8 * histEnd;
+	s32 curChar;
+	u32 cur=0;
+	u32 top=1;
+	string[cur] = 3;
+	while (1)
+	{
+		fputc ( '\r', stdout);
+		printf("fith-> ");
+		//~ for (u32 i=0; i<cur; i++)
+		//~ {
+			//~ fputc ( string[i], stdout);
+		//~ }
+		//printf("%s", string);
+		print_code(string, cur);
+		fputc ( 32, stdout);
+		for (u32 i=0; i<top-cur; i++)
+		{
+			fputc ( '\010', stdout); // backspace
+		}
+		curChar = fgetc ( stdin );
+		//printf("%d ", curChar);
+		if (curChar==-1){ // EOF
+			return 0;
+		}
+		if (curChar==3){ // cntrl + c
+			raw_end();
+			exit(1);
+		}
+		// right arrow 27 91 67
+		// left arrow 27 91 68
+		// del key 27 91 51 126
+		if (curChar==27){ // up arrow 27 91 65 down arrow 27 91 66
+			curChar = fgetc ( stdin );
+			if (curChar==91){ // up arrow 27 91 65 down arrow 27 91 66
+				curChar = fgetc ( stdin );
+				if (curChar==51){ // up arrow 27 91 65 down arrow 27 91 66
+					curChar = fgetc ( stdin );
+					if (curChar==126){ // up arrow 27 91 65 down arrow 27 91 66
+						// handle delete key 27 91 51 126
+						if(cur==(top-1)){ // check for overrun
+							continue;
+						}
+						top--;
+						// shift buff backward
+						for (u32 i=cur; i<top; i++)
+						{
+							string[i]=string[i+1];
+						}
+						continue;
+					}
+				} else if (curChar==65){
+					// handle up arrow
+					if (history==0){ // null pointer, no history
+						continue;
+					}
+					if ((*history==3)){ // at top of history
+						if (*(history-1)==3){ // bottom
+							continue;
+						} else {
+							history-=2; // skip past null and newline
+							// go back for previous newline
+							while((*history!='\n')&&(*history!=3)){
+								history--;
+							}
+							history++;
+						}
+					}
+					fputc ( '\r', stdout);
+					for (u32 i=0; i<cur+9; i++)
+					{
+						
+						fputc ( 32, stdout);
+					}
+					cur=0;
+					top=1;
+					string[cur] = 0;
+					while((*history!='\n')&&(*history!=3))
+					{
+						// shift buff forward
+						for (u32 i=top; i>cur; i--)
+						{
+							string[i]=string[i-1];
+						}
+						string[cur] = *history; // insert char
+						top++;
+						cur++;
+						history++;
+					}
+					history--;
+					while((*history!='\n')&&(*history!=3)){
+						history--;
+					}
+					// one below last start
+					if ((*history==3)){
+						history++;
+					} else { //newline, search again
+						history--;
+						while((*history!='\n')&&(*history!=3)){
+							history--;
+						}
+						history++;
+					}
+				} else if (curChar==66){
+					// handle down
+				} else if (curChar==67){
+					// handle right arrow
+					if(cur==(top-1)){ // check for overrun
+						continue;
+					}
+					cur++;
+				} else if (curChar==68){
+					// handle left arrow
+					if(cur==0){ // check for overrun
+						continue;
+					}
+					cur--;
+				} else { // skip anything else
+					continue;
+				}
+				continue;
+			}
+		}
+		if (curChar==13){ // carriage return character WHEN YOU PRESS ENTER
+			fputc ( '\r', stdout);
+			fputc ( '\n', stdout);
+			// write into local buff
+			if(top==limit){ // check for overrun
+				printf("fith_fgets:Input greater than limit.\n");
+				return 0;
+			}
+			string[top-1] = 10; // CHANGE TO A NEWLINE!!!!
+			string[top] = 3;
+			break;
+		}
+		if (curChar==127){ //
+			if(cur==0){ // check for overrun
+				continue;
+			}
+			cur--;
+			top--;
+			// shift buff backward
+			for (u32 i=cur; i<top; i++)
+			{
+				string[i]=string[i+1];
+			}
+			continue;
+		}
+		// write into local buff
+		if(top==limit){ // check for overrun
+			printf("fith_fgets:Input greater than limit.\n");
+			return 0;
+		}
+		// shift buff forward
+		for (u32 i=top; i>cur; i--)
+		{
+			string[i]=string[i-1];
+		}
+		string[cur] = curChar; // insert char
+		top++;
+		cur++;
+		// always null terminate
+		//~ if(cur==limit){ // check for overrun
+			//~ printf("fith_fgets:Input greater than limit.\n");
+			//~ return 0;
+		//~ }
+		//~ string[cur] = 0;
+		
+		//~ //fputc ( '{', stdout);
+		//printf("%d", curChar);//backspace=127, del=51 126
+		//~ //fputc ( curChar, stdout); //fgetc ( stdin );
+		//~ //fputc ( '}', stdout);
+		//~ fputc ( '\r', stdout);
+		//~ fputc ( '\n', stdout);
+		//~ //fflush (stdout);
+	}
+	return top;
 }
 
 /* globals */
@@ -172,11 +388,12 @@ if (p_s->stk<p_s->stk_end) \
 int main(int argc, char **argv)
 {
 	
-	unsigned char * data;
+	unsigned char * data=0, *output_string_base;
 	//void *pEngine;     /* The LEMON-generated LALR(1) parser */
 	//yyParser sEngine;  /* Space to hold the Lemon-generated Parser object */
 	unsigned char output_string[65536] = {0};
-	unsigned char strBuff[4096] = {0};
+	unsigned char stringBuffer[4096] = {0};
+	unsigned char *strBuff;
 	Data stack[384]={0};
 	Data vars[512]={0};
 	//unsigned char file_name_buff[512] = {0};
@@ -190,7 +407,7 @@ int main(int argc, char **argv)
 	ScopeList varList={0};
 	stringLitList strList={0};
 	int tmp_token;
-	u32 x;
+	u32 x, inputLen,z;
 	ParserState p_s = {0};
 	FILE * pFile;
 	size_t lSize;
@@ -198,11 +415,13 @@ int main(int argc, char **argv)
 	size_t result;
 	DIR *d=0;
 	struct dirent *dir;
+	output_string[0]=3;
+	output_string_base=&output_string[1];
 	p_s.scopeList = &scopeList;
 	p_s.varList = &varList;
 	p_s.out = output;
-	p_s.buff_start = output_string;
-	p_s.buff = output_string;
+	p_s.buff_start = output_string_base;
+	p_s.buff = output_string_base;
 	p_s.stk = stack;
 	p_s.stk_start = stack;
 	p_s.stk_end = &stack[374];
@@ -214,6 +433,8 @@ int main(int argc, char **argv)
 	scopeList.end=&scopeList.table[65535];
 	varList.cursor_stack[0]=varList.table;
 	varList.end=&varList.table[65535];
+	//strBuff = stpcpy((char *)stringBuffer, "fith-> ");
+	strBuff = stringBuffer;
 	
 	sqlite3_initialize();
 	sqlite3_open(":memory:", &fdb);
@@ -255,10 +476,28 @@ int main(int argc, char **argv)
 				return 0;
 				break;
 				case 1:
+				
 				while (1)
 				{
-					printf("fith-> ");
-					if (fgets ((char *)strBuff, 4096, stdin) != NULL )
+					//printf("fith-> ");
+					//~ printf("%d", fgetc(stdin));
+					//~ //fputc ( curChar, stdout); //fgetc ( stdin );
+					//~ //fputc ( '}', stdout);
+					//~ fputc ( '\r', stdout);
+					//~ fputc ( '\n', stdout);
+					x++;
+					raw_begin();
+					inputLen = fith_fgets(strBuff, 4096, data);
+					raw_end();
+					//~ for(u32 y=0;strBuff[y];y++)
+					//~ {
+							//~ //fputc ( strBuff[y], stdout);
+							//~ printf("%d ", strBuff[y]);
+							
+					//~ }
+					//~ fputc ( '\n', stdout);
+					//printf("strBuff: %s", strBuff);
+					if (inputLen!= 0 )
 					{
 						if (!(strncmp((const char *)strBuff, ".exit", 5)))
 						{
@@ -274,11 +513,13 @@ int main(int argc, char **argv)
 							p_s.is_fp=0;
 							continue;
 						}
+						//printf("strBuff: %s\n", strBuff);
 						if (!(strncmp((const char *)strBuff, ".dump", 5)))
 						{
 							//*(p_s.buff_start) = '\000';
-							//printf("%s",output_string);
-							print_code(output_string, p_s.buff_start-output_string);
+							//printf("xxx: %s end\n", output_string_base);
+							//printf("%s",output_string_base);
+							print_code(output_string_base, p_s.buff_start-output_string_base);
 							continue;
 						}
 						if (!(strncmp((const char *)strBuff, ".save", 5)))
@@ -286,17 +527,27 @@ int main(int argc, char **argv)
 							*(p_s.buff_start) = '\000';
 							pFile = fopen ( "session.fith", "w" );
 							if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
-							fwrite (output_string,
+							fwrite (output_string_base,
 								sizeof(char),
-								p_s.buff_start-output_string,
+								p_s.buff_start-output_string_base,
 								pFile);
 							fflush (pFile);
 							fclose (pFile);
 							printf("session.fith saved\n");
 							continue;
 						}
+						
 						data = p_s.buff_start;
-						p_s.buff_start = (u8*)stpcpy((char *)p_s.buff_start, (const char *)strBuff);
+						z=0;
+						if((*strBuff!='\n')&&(*strBuff!='.')){
+							while(strBuff[z]!=3){
+								*p_s.buff_start=strBuff[z];
+								z++;
+								p_s.buff_start++;
+							}
+							//p_s.buff_start = (u8*)stpcpy((char *)p_s.buff_start, (const char *)strBuff);
+						}
+						//printf("data: %s\n", strBuff);
 						if(p_s.is_fp)
 						{
 							*(p_s.buff_start) = 'f';
@@ -309,6 +560,7 @@ int main(int argc, char **argv)
 						do {
 							tmp_token = lex(data, &token, &p_s.line_num, &p_s);
 						} while (tmp_token != 0);
+						*(p_s.buff_start) = 3;
 					}
 				}
 				break;
@@ -320,7 +572,7 @@ int main(int argc, char **argv)
 				one_file_return:
 				break;
 			}
-			p_s.buff_start = output_string;
+			p_s.buff_start = output_string_base;
 		}
 	}
 	
