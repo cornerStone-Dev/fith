@@ -171,7 +171,7 @@ print_code(const u8 *str, u32 len)
 static s32
 fith_fgets(u8 *string, u32 limit, u8 *history)
 {
-	//u8 * histEnd;
+	u8 * histEnd;
 	s32 curChar;
 	u32 cur=0;
 	u32 top=1;
@@ -272,10 +272,48 @@ fith_fgets(u8 *string, u32 limit, u8 *history)
 						while((*history!='\n')&&(*history!=3)){
 							history--;
 						}
-						history++;
+						history++; // next history start
 					}
 				} else if (curChar==66){
 					// handle down
+					if (history==0){ // null pointer, no history
+						continue;
+					}
+					if ((*history==3)){ // at top of history
+						continue;
+					}
+					// we have valid history, but may be just last command
+					histEnd = history;
+					// find end
+					while((*histEnd!='\n')&&(*histEnd!=3)){
+						histEnd++;
+					}
+					if ((*histEnd==3)){ // at top of history
+						continue;
+					}
+					histEnd++;
+					history = histEnd;
+					fputc ( '\r', stdout);
+					for (u32 i=0; i<cur+9; i++)
+					{
+						
+						fputc ( 32, stdout);
+					}
+					cur=0;
+					top=1;
+					string[cur] = 0;
+					while((*histEnd!='\n')&&(*histEnd!=3))
+					{
+						// shift buff forward
+						for (u32 i=top; i>cur; i--)
+						{
+							string[i]=string[i-1];
+						}
+						string[cur] = *histEnd; // insert char
+						top++;
+						cur++;
+						histEnd++;
+					}
 				} else if (curChar==67){
 					// handle right arrow
 					if(cur==(top-1)){ // check for overrun
