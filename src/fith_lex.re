@@ -16,7 +16,7 @@
 	// floating literals
 	frc = [0-9]* "." [0-9]+ | [0-9]+ ".";
 	exp = 'e' [+-]? [0-9]+;
-	flt = (frc exp? | [0-9]+ exp) [fFlL]?;
+	flt = "-"? (frc exp? | [0-9]+ exp) [fFlL]?;
 	string_lit = ['] ([^'\x00\x03] | ([\\] [']))* ['];
 	//string_lit_chain = string_lit ([ \n\t\r]* string_lit)+;
 	//string_lit_chain = ([^"\n] | ([\\] ["]))* ("\n" | ["]);
@@ -24,7 +24,7 @@
 	string_lit_end = ([^'\n] | ([\\] [']))* ['];
 	mangled_string_lit = ['] ([^'\x00\x03] | ([\\] [']))* "\x00";
 	char_lit = [`] ([^`\x03] | ([\\] [`]))* [`];
-	integer = oct | dec | hex;
+	integer = "-"? oct | dec | hex;
 	lblock =     "{";
 	rblock =     "}";
 	lparen =     "(";
@@ -683,7 +683,50 @@ loop: // label for looping within the lexxer
 		(p_s->stk-1)->i=labs((p_s->stk-1)->i);
 		goto loop;
 	}
+
+	"fabs" {
+		(p_s->stk-1)->d=fabs((p_s->stk-1)->d);
+		goto loop;
+	}
 	
+	"i2f" {
+		(p_s->stk-1)->d=(p_s->stk-1)->i;
+		goto loop;
+	}
+	
+	"i2s" {
+		// save off value
+		p_s->stk->i=(p_s->stk-1)->i;
+		// get string
+		(p_s->stk-1)->s = logged_malloc(64);
+		sprintf((char *)(p_s->stk-1)->s, "%ld", p_s->stk->i);
+		goto loop;
+	}
+	
+	"f2i" {
+		(p_s->stk-1)->i=(p_s->stk-1)->d;
+		goto loop;
+	}
+	
+	"f2s" {
+		// save off value
+		p_s->stk->d=(p_s->stk-1)->d;
+		// get string
+		(p_s->stk-1)->s = logged_malloc(64);
+		sprintf((char *)(p_s->stk-1)->s, "%f", p_s->stk->d);
+		goto loop;
+	}
+
+	"s2i" {
+		(p_s->stk-1)->i = atol( (const char *)(p_s->stk-1)->s );
+		goto loop;
+	}
+	
+	"s2f" {
+		(p_s->stk-1)->d = atof( (const char *)(p_s->stk-1)->s );
+		goto loop;
+	}
+
 	"json_extract" {
 		DECREMENT_STACK
 		(p_s->stk-1)->i = fith_json_extract((p_s->stk-1)->s,

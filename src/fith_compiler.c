@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <time.h>
+#include <math.h>
 #include <termios.h>
 
 #include "std_types.h"
