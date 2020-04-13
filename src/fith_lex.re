@@ -623,6 +623,18 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	"jsort" { // return sorted JSON array
+
+		// begin json work
+		c->stk->i = fith_json_sort((c->stk-1)->s, // json
+									(c->stk-1));  // value output
+		// check for early exit
+		if(c->stk->i!=0){
+			printf("jsort error!!!\n");
+		}
+		goto loop;
+	}
+	
 	"sleep" {
 		DECREMENT_STACK
 		DECREMENT_STACK
@@ -676,6 +688,16 @@ loop: // label for looping within the lexxer
 	"free" {
 		DECREMENT_STACK
 		free(c->stk->s);
+		goto loop;
+	}
+	
+	"sort" {
+		DECREMENT_STACK
+		if(c->stk-c->stk_start<c->stk->i){
+			printf("stack underflow [?] operator avoided!!!\n");
+			goto loop;
+		}
+		MERGE_SORT_s64((s64 *)(c->stk-c->stk->i), c->stk->i);
 		goto loop;
 	}
 	
@@ -942,7 +964,7 @@ loop: // label for looping within the lexxer
 					}
 				}
 				//c->buff = (u8*)stpcpy((char *)c->buff, (const char *)c->file_name_buff);
-				(c->stk+5)->s=stpcpy((char *)c->buff, " debug");
+				(c->stk+5)->s=(u8*)stpcpy((char *)c->buff, " debug");
 				*(c->stk+5)->s=3;
 				YYCURSOR = c->out;
 				goto loop;
@@ -995,7 +1017,8 @@ loop: // label for looping within the lexxer
 											(c->stk+4)->s, // key
 											c->stk);   // value
 		if ((c->stk+3)->i){
-			printf("json_extract error!!!\n");
+			printf("json_extract returned \"null\"\n");
+			c->stk->s = (u8*)"null";
 		}
 		*YYCURSOR = (c->stk+2)->i;
 		INCREMENT_STACK

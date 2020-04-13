@@ -40,6 +40,7 @@ fith_json_extract(u8 *json, u8 *key, Data *val)
 	u8 buff[256];
 	const u8 *res;
 	u8 *ret;
+	s64 step;
 	
 	
 	SQL3_QUERY_json_extract(fdb,
@@ -48,46 +49,47 @@ fith_json_extract(u8 *json, u8 *key, Data *val)
 	buff[0]='$';
 	buff[1]=0;
 	strcat((char *)buff,(const char *)key);
-	
 	SQL3_BIND_json_extract();
-	
 	/* prepare SQL query */
-	SQL3_STEP_json_extract();
-	SQL3_COL_json_extract();
-	switch(res[0]) {
-		case 0:   // NULL
-		res = (const u8 *)"NULL";
-		goto copy_exit;
-		case 'a': // array
-		goto text_exit;
-		case 'f': // false
-		goto copy_exit;
-		case 'i': // integer
-		val->i=sqlite3_column_int64(fdb_stmt_array[fdb_enum3], 1);
-		goto reset_exit;
-		case 'n': // null
-		goto copy_exit;
-		case 'o': // object
-		goto text_exit;
-		case 'r': // real
-		val->d=sqlite3_column_double(fdb_stmt_array[fdb_enum3], 1);
-		goto reset_exit;
-		case 't': // true or text
-		if (res[1]=='r') { // true
+	step = SQL3_STEP_json_extract();
+	if (step == SQLITE_ROW) {
+		step=0;
+		SQL3_COL_json_extract();
+		switch(res[0]) {
+			case 0:   // NULL
+			res = (const u8 *)"NULL";
 			goto copy_exit;
+			case 'a': // array
+			goto text_exit;
+			case 'f': // false
+			goto copy_exit;
+			case 'i': // integer
+			val->i=sqlite3_column_int64(fdb_stmt_array[fdb_enum3], 1);
+			goto reset_exit;
+			case 'n': // null
+			goto copy_exit;
+			case 'o': // object
+			goto text_exit;
+			case 'r': // real
+			val->d=sqlite3_column_double(fdb_stmt_array[fdb_enum3], 1);
+			goto reset_exit;
+			case 't': // true or text
+			if (res[1]=='r') { // true
+				goto copy_exit;
+			}
+			goto text_exit;
+			default: step=-1;goto reset_exit;
 		}
-		goto text_exit;
-		default: return -1;
-	}
-	text_exit:
-	res=sqlite3_column_text(fdb_stmt_array[fdb_enum3], 1);
-	copy_exit:
-	ret = logged_malloc(((strlen((const char *)res)/64+1)*64));
-	strcpy((char *)ret, (const char *)res);
-	val->s = ret;
+		text_exit:
+		res=sqlite3_column_text(fdb_stmt_array[fdb_enum3], 1);
+		copy_exit:
+		ret = logged_malloc(((strlen((const char *)res)/64+1)*64));
+		strcpy((char *)ret, (const char *)res);
+		val->s = ret;
+	} else {step=-1;}
 	reset_exit:
 	SQL3_RESET_json_extract();
-	return 0;
+	return step;
 }
 
 
@@ -154,6 +156,31 @@ fith_json_each(u8 *json, Data *val, sqlite3_stmt **sql)
 }
 
 //TODO stay below
+
+static s64
+fith_json_sort(u8 *json, Data *val)
+{
+	const u8 *res;
+	u8 *ret;
+	s64 step;
+	
+	SQL3_QUERY_json_sort(fdb,
+		"SELECT json_group_array(value)=?t:res FROM (SELECT json_each.value FROM json_each(?t@json) ORDER BY json_each.value);");
+		//"SELECT json_group_array(json_each.value)=?t:res  FROM json_each(?t@json) ORDER BY json_each.value;"); BAD!!
+	
+	SQL3_BIND_json_sort();
+	/* prepare SQL query */
+	step = SQL3_STEP_json_sort();
+	if (step == SQLITE_ROW) {
+		step=0;
+		SQL3_COL_json_sort();
+		ret = logged_malloc(((strlen((const char *)res)/64+1)*64));
+		strcpy((char *)ret, (const char *)res);
+		val->s = ret;
+	} else {step=-1;}
+	SQL3_RESET_json_sort();
+	return step;
+}
 
 static u8 *
 fith_json_set_j(u8 *json, u8 *key, u8 *val)
@@ -488,5 +515,159 @@ get_variable(u8 *start, u64 len, s64 *val)
 	return 1;
 }
 
+static __inline s64 CMP_INT(s64 x,s64 y)
+{
+	return ((x) - (y));
+}
+
+/*  Used in mergesort. */
+static __inline void INSERTION_SORT_s64(s64 *dsti, const size_t size) 
+{
+	size_t i=1;
+	s64 *dst=dsti;
+	
+	for (; i < size; i++) 
+	{
+		size_t j;
+		s64 x;
+
+		/* If this entry is already correct, just move along */
+		if (CMP_INT(dst[i - 1], dst[i]) <= 0)
+		{
+			continue;
+		}
+
+		/* Else we need to find the right place while shifting everything over */
+		x = dst[i];
+		j = i;
+
+		for (;;) 
+		{
+			dst[j] = dst[j-1];
+			j--;
+			if ( ((j == 0)||(CMP_INT(dst[j-1], x) <= 0)) )
+			{
+				break;
+			}
+		}
+		dst[j] = x;
+	}
+}
+
+/* Standard merge sort */
+void MERGE_SORT_RECURSIVE_s64(s64 *newdsti, s64 *dsti, const size_t size) {
+	s64 *newdst=newdsti;
+	s64 *dst=dsti;
+	const size_t middle = size / 2;
+	size_t out = 0;
+	size_t i = 0;
+	size_t j = middle;
+
+	if (size <= 16) {
+		INSERTION_SORT_s64(dst, size);
+		return;
+	}
+
+	MERGE_SORT_RECURSIVE_s64(newdst, dst, middle);
+	MERGE_SORT_RECURSIVE_s64(newdst, &dst[middle], size - middle);
+
+	if (CMP_INT(dst[middle - 1], dst[middle]) <= 0)
+		{ return; }
+
+	/* copy off left side */
+	for (; out < middle; out++) {
+		newdst[out]=dst[out];
+	}
+	out=0;
+
+	for (; i < middle && j < size; ++out) {
+		if (CMP_INT(newdst[i], dst[j]) <= 0) {
+			dst[out] = newdst[i++];
+		} else {
+			dst[out] = dst[j++];
+		}
+	}
+
+	for (; i < middle; ++out) {
+		dst[out] = newdst[i++];
+	}
+}
+
+/*  Used in mergesort. */
+static int REVERSE_SORT_s64(s64 *dsti, const size_t size) 
+{
+	s64 *dst=dsti;
+	s64 x;
+	size_t i;
+	size_t j;
+	size_t n;
+	size_t p;
+	size_t num_reverse;
+	size_t off;
+
+	/* filter for reverse runs */
+	for (i = 1; i < size; i++)
+	{
+		/* If this entry is already correct, just move along */
+		if (CMP_INT(dst[i - 1], dst[i]) <= 0) 
+		{
+			if(i>33)
+			{
+				return 0;
+			}
+			continue;
+		} else 
+		{
+			off=i-1;
+			num_reverse=0;
+			do{
+				num_reverse++;
+				i++;
+			} while((i < size)&&(CMP_INT(dst[i - 1], dst[i]) > 0));
+			n=num_reverse;
+			num_reverse++;
+
+			j=num_reverse/2; /* num items to cpy */
+			for (p = 0; p < j; p++) /* top part */
+			{
+				x=dst[p+off];
+				dst[p+off]=dst[n+off];
+				dst[n+off]=x;
+				n--;
+			}
+			if(num_reverse==size)
+			{
+				return 1;
+			}
+			return 0;
+		}
+	}
+	return 0;
+}
+
+/* Standard merge sort */
+void MERGE_SORT_s64(s64 *dst, const size_t size) {
+	s64 *newdst;
+
+	/* don't bother sorting an array of size <= 1 */
+	if (size <= 1) {
+		return;
+	}
+
+	if (size <= 32) {
+		INSERTION_SORT_s64(dst, size);
+		return;
+	}
+
+	if(REVERSE_SORT_s64(dst, size))
+	{
+		return;
+	}
+
+	newdst = malloc(size/2);
+
+	MERGE_SORT_RECURSIVE_s64(newdst, dst, size);
+	free(newdst);
+}
 
 

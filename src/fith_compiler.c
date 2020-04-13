@@ -165,7 +165,7 @@ fith_fgets(u8 *string, u32 limit, u8 *history)
 			//~ fputc ( string[i], stdout);
 		//~ }
 		//printf("%s", string);
-		print_code(string, cur);
+		print_code(string, (top-1));
 		fputc ( 32, stdout);
 		for (u32 i=0; i<top-cur; i++)
 		{

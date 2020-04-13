@@ -1,5 +1,5 @@
 \ simple tests
-debug
+\debug
 3 8 + 11 != if 'math error' p then
 
 \ multi line string
@@ -149,6 +149,12 @@ $jsonObj p
 
 1 2 3 4 5 dep . =$jsonAr3[?].i $jsonAr3 p $jsonAr3 jeach jdone . clear
  
+0 =$var.key.i $var p . 'test' p $var[aa] . p
+
+5 4 3 2 1 dep =$jsonAr4[?].i $jsonAr4 dup p jsort p
+'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
+5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p
+
 \ 1 2 3 4 5 depth =$var[?].i puts it all into array
  \~ \## REQUEST FOR COMMENT
 \~ jeach \ goes once per element in array, pushes JSON value onto stack
