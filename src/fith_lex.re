@@ -893,8 +893,11 @@ loop: // label for looping within the lexxer
 		
 		while (1)
 		{
-			printf("debug:: ");
-			if (fgets ((char *)c->file_name_buff, 512, stdin) != NULL )
+			raw_begin();
+			(c->stk+4)->i = fith_fgets(c->file_name_buff, 512, c->out);
+			raw_end();
+			//if (fgets ((char *)c->file_name_buff, 512, stdin) != NULL )
+			if ((c->stk+4)->i )
 			{
 				if (!(strncmp((const char *)c->file_name_buff, ".dump", 5)))
 				{
@@ -930,8 +933,17 @@ loop: // label for looping within the lexxer
 					goto loop;
 				}
 				c->out = c->buff;
-				c->buff = (u8*)stpcpy((char *)c->buff, (const char *)c->file_name_buff);
-				stpcpy((char *)c->buff, " debug");
+				(c->stk+5)->i=0;
+				if((*c->file_name_buff!='\n')&&(*c->file_name_buff!='.')){
+					while(c->file_name_buff[(c->stk+5)->i]!=3){
+						*c->buff=c->file_name_buff[(c->stk+5)->i];
+						(c->stk+5)->i++;
+						c->buff++;
+					}
+				}
+				//c->buff = (u8*)stpcpy((char *)c->buff, (const char *)c->file_name_buff);
+				(c->stk+5)->s=stpcpy((char *)c->buff, " debug");
+				*(c->stk+5)->s=3;
 				YYCURSOR = c->out;
 				goto loop;
 			}

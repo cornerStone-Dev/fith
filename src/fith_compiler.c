@@ -561,7 +561,6 @@ int main(int argc, char **argv)
 								z++;
 								c.buff_start++;
 							}
-							//c.buff_start = (u8*)stpcpy((char *)c.buff_start, (const char *)strBuff);
 						}
 						//printf("data: %s\n", strBuff);
 						if(c.is_fp)
