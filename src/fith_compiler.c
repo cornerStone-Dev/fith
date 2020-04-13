@@ -40,16 +40,6 @@ typedef union boken {
 	s32    fd[2];
 } Data;
 
-typedef struct Xoken {
-	union{
-		u8 * s;
-		s64  i;
-		f64  d;
-	};
-	u32  l;
-	u32  flags;
-} Token;
-
 typedef struct ScopeList{
 	u8 * end;
 	u8 * cursor_stack[16];
@@ -66,21 +56,21 @@ typedef struct stringLitList{
 	u8 * buff[512];
 } stringLitList;
 
-typedef struct parser_s{
+typedef struct context_s{
 	ScopeList     *scopeList;
 	ScopeList     *varList;
 	Data *        stk;
 	Data *        stk_start;
 	Data *        stk_end;
 	Data *        vars;
-	stringLitList *strList;
 	Data *        cstk;
+	stringLitList *strList;
 	u8 **         words;
 	u8 *          buff;
 	u8 *          buff_start;
 	u8 *          out;
 	u8 *          yycur;
-	u8 *          step_spot;
+	u8 *          stecpot;
 	struct        timespec time;
 	u32           num_dots;
 	u32           line_num;
@@ -98,7 +88,7 @@ typedef struct parser_s{
 	u8            printed_error;
 	u8            local_macro;
 	u8            is_inline;
-} ParserState;
+} Context;
 
 static sqlite3 *fdb;
 
@@ -148,24 +138,13 @@ raw_end(void)
 static void
 print_code(const u8 *str, u32 len)
 {
-	//printf("len: %d end\n", len);
 	for(u32 x=0; x<len; x++){
 		if(str[x]=='\000') {
 			fputc ('\'', stdout);
 			continue;
 		}
-		//~ if(str[x]==13) {
-			//~ fputc ('[', stdout);
-			//~ fputc ('\\', stdout);
-			//~ fputc ('n', stdout);
-			//~ fputc (']', stdout);
-			//~ continue;
-		//~ }
-		//fputc ('[', stdout);
 		fputc (str[x], stdout);
-		//fputc (']', stdout);
 	}
-	//fputc ('\n', stdout);
 }
 
 // new strat: manage buffer only, then regen current line every time
@@ -394,16 +373,16 @@ fith_fgets(u8 *string, u32 limit, u8 *history)
 //~ static FILE * outputFile,* typeProtoFile, * typesFile,
 	//~ * funcProtoFile, * globalsFile, * interfaceFile, * includesFile;
 #define DECREMENT_STACK \
-if (p_s->stk>p_s->stk_start) \
+if (c->stk>c->stk_start) \
 { \
-	p_s->stk--; \
+	c->stk--; \
 } else \
 { printf("stack underflow!!!\n"); }
 
 #define INCREMENT_STACK \
-if (p_s->stk<p_s->stk_end) \
+if (c->stk<c->stk_end) \
 { \
-	p_s->stk++; \
+	c->stk++; \
 } else \
 { printf("stack overflow!!!\n"); }
 
@@ -441,13 +420,12 @@ int main(int argc, char **argv)
 	Data cstack[128]={0};
 	u8 * words[128]={0};
 	u8 * dirName_p;
-	Token token = {0};
 	ScopeList scopeList={0};
 	ScopeList varList={0};
 	stringLitList strList={0};
 	int tmp_token;
 	u32 x, inputLen,z;
-	ParserState p_s = {0};
+	Context c = {0};
 	FILE * pFile;
 	size_t lSize;
 	unsigned char * buffer;
@@ -456,18 +434,18 @@ int main(int argc, char **argv)
 	struct dirent *dir;
 	output_string[0]=3;
 	output_string_base=&output_string[1];
-	p_s.scopeList = &scopeList;
-	p_s.varList = &varList;
-	p_s.out = output;
-	p_s.buff_start = output_string_base;
-	p_s.buff = output_string_base;
-	p_s.stk = stack;
-	p_s.stk_start = stack;
-	p_s.stk_end = &stack[374];
-	p_s.vars = vars;
-	p_s.cstk = cstack;
-	p_s.words = words;
-	p_s.strList = &strList;
+	c.scopeList = &scopeList;
+	c.varList = &varList;
+	c.out = output;
+	c.buff_start = output_string_base;
+	c.buff = output_string_base;
+	c.stk = stack;
+	c.stk_start = stack;
+	c.stk_end = &stack[374];
+	c.vars = vars;
+	c.cstk = cstack;
+	c.words = words;
+	c.strList = &strList;
 	scopeList.cursor_stack[0]=scopeList.table;
 	scopeList.end=&scopeList.table[65535];
 	varList.cursor_stack[0]=varList.table;
@@ -524,7 +502,6 @@ int main(int argc, char **argv)
 					//~ //fputc ( '}', stdout);
 					//~ fputc ( '\r', stdout);
 					//~ fputc ( '\n', stdout);
-					x++;
 					raw_begin();
 					inputLen = fith_fgets(strBuff, 4096, data);
 					raw_end();
@@ -544,31 +521,31 @@ int main(int argc, char **argv)
 						}
 						if (!(strncmp((const char *)strBuff, ".fp", 3)))
 						{
-							p_s.is_fp=1;
+							c.is_fp=1;
 							continue;
 						}
 						if (!(strncmp((const char *)strBuff, ".int", 4)))
 						{
-							p_s.is_fp=0;
+							c.is_fp=0;
 							continue;
 						}
 						//printf("strBuff: %s\n", strBuff);
 						if (!(strncmp((const char *)strBuff, ".dump", 5)))
 						{
-							//*(p_s.buff_start) = '\000';
+							//*(c.buff_start) = '\000';
 							//printf("xxx: %s end\n", output_string_base);
 							//printf("%s",output_string_base);
-							print_code(output_string_base, p_s.buff_start-output_string_base);
+							print_code(output_string_base, c.buff_start-output_string_base);
 							continue;
 						}
 						if (!(strncmp((const char *)strBuff, ".save", 5)))
 						{
-							*(p_s.buff_start) = '\000';
+							*(c.buff_start) = '\000';
 							pFile = fopen ( "session.fith", "w" );
 							if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
 							fwrite (output_string_base,
 								sizeof(char),
-								p_s.buff_start-output_string_base,
+								c.buff_start-output_string_base,
 								pFile);
 							fflush (pFile);
 							fclose (pFile);
@@ -576,53 +553,53 @@ int main(int argc, char **argv)
 							continue;
 						}
 						
-						data = p_s.buff_start;
+						data = c.buff_start;
 						z=0;
 						if((*strBuff!='\n')&&(*strBuff!='.')){
 							while(strBuff[z]!=3){
-								*p_s.buff_start=strBuff[z];
+								*c.buff_start=strBuff[z];
 								z++;
-								p_s.buff_start++;
+								c.buff_start++;
 							}
-							//p_s.buff_start = (u8*)stpcpy((char *)p_s.buff_start, (const char *)strBuff);
+							//c.buff_start = (u8*)stpcpy((char *)c.buff_start, (const char *)strBuff);
 						}
 						//printf("data: %s\n", strBuff);
-						if(p_s.is_fp)
+						if(c.is_fp)
 						{
-							*(p_s.buff_start) = 'f';
-							*(p_s.buff_start+1) = '.';
-							*(p_s.buff_start+2) = '\003';
+							*(c.buff_start) = 'f';
+							*(c.buff_start+1) = '.';
+							*(c.buff_start+2) = '\003';
 						} else {
-							*(p_s.buff_start) = '.';
-							*(p_s.buff_start+1) = '\003';
+							*(c.buff_start) = '.';
+							*(c.buff_start+1) = '\003';
 						}
 						do {
-							tmp_token = lex(data, &token, &p_s.line_num, &p_s);
+							tmp_token = lex(data, &c.line_num, &c);
 						} while (tmp_token != 0);
-						*(p_s.buff_start) = 3;
+						*(c.buff_start) = 3;
 					}
 				}
 				break;
 				case 2:
 				printf("target file: %s\n",argv[i]);
-				p_s.is_def=1;
-				sprintf((char *)p_s.file_name_buff, "%s", argv[i]);
+				c.is_def=1;
+				sprintf((char *)c.file_name_buff, "%s", argv[i]);
 				goto one_file;
 				one_file_return:
 				break;
 			}
-			p_s.buff_start = output_string_base;
+			c.buff_start = output_string_base;
 		}
 	}
 	
-	if (p_s.is_def)
+	if (c.is_def)
 	{
 		return 0;
 	}
 	
 	/** Set up parser **/
 	//pEngine = &sEngine;
-	//ParseInit(pEngine, &p_s);
+	//ParseInit(pEngine, &c);
 	
 	/* open current directory */
 	d = opendir("fith_src");
@@ -639,7 +616,7 @@ int main(int argc, char **argv)
 		//printf("Got in\n");
 		if ( (strstr(dir->d_name, ".fith")!=0) ) {
 		//printf("%s\n", dir->d_name);
-		p_s.line_num=1;
+		c.line_num=1;
 		//~ output = (uint8_t *)stpcpy((char *)output, "/* src/");
 		//~ output = (uint8_t *)stpcpy((char *)output, dir->d_name);
 		//~ output = (uint8_t *)stpcpy((char *)output, " */\n");
@@ -649,13 +626,13 @@ int main(int argc, char **argv)
 				//~ outputFile);
 		//~ output = output_string;
 		
-		p_s.out = output;
+		c.out = output;
 		
-		sprintf((char *)p_s.file_name_buff, "fith_src/%s", dir->d_name);
+		sprintf((char *)c.file_name_buff, "fith_src/%s", dir->d_name);
 
 		one_file:
 		
-		pFile = fopen ( (char *)p_s.file_name_buff, "rb" );
+		pFile = fopen ( (char *)c.file_name_buff, "rb" );
 		if (pFile==NULL) {fputs ("File error, cannot open source file\n",stderr); exit (1);}
 		
 		
@@ -678,7 +655,7 @@ int main(int argc, char **argv)
 		buffer[lSize]=3;
 		
 		do {
-			tmp_token = lex(data, &token, &p_s.line_num, &p_s);
+			tmp_token = lex(data, &c.line_num, &c);
 
 			//Parse(pEngine, tmp_token, token);
 			
@@ -690,7 +667,7 @@ int main(int argc, char **argv)
 		/* free memory that stored copy of file */
 		free (buffer);
 		}
-		if (p_s.is_def)
+		if (c.is_def)
 		{
 			goto one_file_return;
 		}
@@ -707,7 +684,7 @@ int main(int argc, char **argv)
 	/*** De-comission parser * */
 	//ParseFinalize(pEngine);
 	s32 rcode;
-	if(p_s.printed_error){
+	if(c.printed_error){
 		rcode = 1;
 	} else {
 		rcode = 0;
