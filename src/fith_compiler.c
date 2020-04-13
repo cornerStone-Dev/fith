@@ -220,7 +220,7 @@ fith_fgets(u8 *string, u32 limit, u8 *history)
 						}
 					}
 					fputc ( '\r', stdout);
-					for (u32 i=0; i<cur+9; i++)
+					for (u32 i=0; i<top+9; i++)
 					{
 						
 						fputc ( 32, stdout);
@@ -274,7 +274,7 @@ fith_fgets(u8 *string, u32 limit, u8 *history)
 					histEnd++;
 					history = histEnd;
 					fputc ( '\r', stdout);
-					for (u32 i=0; i<cur+9; i++)
+					for (u32 i=0; i<top+9; i++)
 					{
 						
 						fputc ( 32, stdout);
