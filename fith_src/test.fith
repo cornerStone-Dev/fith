@@ -155,6 +155,8 @@ $jsonObj p
 'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
 5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p
 
+
+
 \ 1 2 3 4 5 depth =$var[?].i puts it all into array
  \~ \## REQUEST FOR COMMENT
 \~ jeach \ goes once per element in array, pushes JSON value onto stack

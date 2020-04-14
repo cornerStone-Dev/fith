@@ -23,11 +23,6 @@
 #define NDEBUG
 #define Parse_ENGINEALWAYSONSTACK
 
-#define IS_INT    0x10000000
-#define IS_FLOAT  0x20000000
-#define IS_STR    0x40000000
-#define CTR_OFF   0x80000000
-#define FLAG_MASK 0x70000000
 typedef struct Xoken Token;
 
 typedef union boken Data;
@@ -160,11 +155,6 @@ fith_fgets(u8 *string, u32 limit, u8 *history)
 	{
 		fputc ( '\r', stdout);
 		printf("fith-> ");
-		//~ for (u32 i=0; i<cur; i++)
-		//~ {
-			//~ fputc ( string[i], stdout);
-		//~ }
-		//printf("%s", string);
 		print_code(string, (top-1));
 		fputc ( 32, stdout);
 		for (u32 i=0; i<top-cur; i++)
@@ -407,8 +397,6 @@ int main(int argc, char **argv)
 {
 	
 	unsigned char * data=0, *output_string_base;
-	//void *pEngine;     /* The LEMON-generated LALR(1) parser */
-	//yyParser sEngine;  /* Space to hold the Lemon-generated Parser object */
 	unsigned char output_string[65536] = {0};
 	unsigned char stringBuffer[4096] = {0};
 	unsigned char *strBuff;
@@ -450,7 +438,6 @@ int main(int argc, char **argv)
 	scopeList.end=&scopeList.table[65535];
 	varList.cursor_stack[0]=varList.table;
 	varList.end=&varList.table[65535];
-	//strBuff = stpcpy((char *)stringBuffer, "fith-> ");
 	strBuff = stringBuffer;
 	
 	sqlite3_initialize();
@@ -461,8 +448,9 @@ int main(int argc, char **argv)
 	
 	SQL3_SETUP(fdb, "PRAGMA journal_mode=OFF;");
 	SQL3_SETUP(fdb, "CREATE TABLE fns(name TEXT PRIMARY KEY, addr INTEGER)WITHOUT ROWID;");
-	SQL3_SETUP(fdb, "CREATE TABLE vars(name TEXT PRIMARY KEY, val INTEGER)WITHOUT ROWID;");
+	SQL3_SETUP(fdb, "CREATE TABLE vars(name TEXT PRIMARY KEY, val INTEGER, mkCpy INTEGER)WITHOUT ROWID;");
 	SQL3_SETUP(fdb, "CREATE TABLE ptrs(addr INTEGER PRIMARY KEY);");
+	SQL3_SETUP(fdb, "CREATE TABLE garb(colMe INTEGER);"); // garbage collect me
 	
 	
 	// end output fl_std file
@@ -496,23 +484,11 @@ int main(int argc, char **argv)
 				
 				while (1)
 				{
-					//printf("fith-> ");
-					//~ printf("%d", fgetc(stdin));
-					//~ //fputc ( curChar, stdout); //fgetc ( stdin );
-					//~ //fputc ( '}', stdout);
-					//~ fputc ( '\r', stdout);
-					//~ fputc ( '\n', stdout);
+
 					raw_begin();
 					inputLen = fith_fgets(strBuff, 4096, data);
 					raw_end();
-					//~ for(u32 y=0;strBuff[y];y++)
-					//~ {
-							//~ //fputc ( strBuff[y], stdout);
-							//~ printf("%d ", strBuff[y]);
-							
-					//~ }
-					//~ fputc ( '\n', stdout);
-					//printf("strBuff: %s", strBuff);
+
 					if (inputLen!= 0 )
 					{
 						if (!(strncmp((const char *)strBuff, ".exit", 5)))

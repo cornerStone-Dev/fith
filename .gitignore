@@ -8,4 +8,5 @@ gen/
 sqlite3/
 fith_src/script.fith
 *.geany
+projects
 session.fith
