@@ -735,7 +735,7 @@ loop: // label for looping within the lexxer
 		// save off value
 		c->stk->i=(c->stk-1)->i;
 		// get string
-		(c->stk-1)->s = logged_malloc(64);
+		(c->stk-1)->s = logged_malloc(63,0);
 		sprintf((char *)(c->stk-1)->s, "%ld", c->stk->i);
 		goto loop;
 	}
@@ -749,7 +749,7 @@ loop: // label for looping within the lexxer
 		// save off value
 		c->stk->d=(c->stk-1)->d;
 		// get string
-		(c->stk-1)->s = logged_malloc(64);
+		(c->stk-1)->s = logged_malloc(63,0);
 		sprintf((char *)(c->stk-1)->s, "%f", c->stk->d);
 		goto loop;
 	}
@@ -1040,9 +1040,9 @@ loop: // label for looping within the lexxer
 			// no variable exists yet, check start to determine
 			// if an array or an object should be created
 			if (start[(c->stk+3)->i]=='.'){
-				(c->stk+1)->s = (u8*)"{}";
+				(c->stk+1)->s = (u8*)"\047{}"+1;
 			} else {
-				(c->stk+1)->s = (u8*)"[]";
+				(c->stk+1)->s = (u8*)"\047[]"+1;
 			}
 		}
 		// need str ptr and length of search path
@@ -1099,9 +1099,9 @@ loop: // label for looping within the lexxer
 			// no variable exists yet, check start to determine
 			// if an array or an object should be created
 			if (start[(c->stk+3)->i]=='.'){
-				(c->stk+1)->s = (u8*)"{}";
+				(c->stk+1)->s = (u8*)"\047{}"+1;
 			} else {
-				(c->stk+1)->s = (u8*)"[]";
+				(c->stk+1)->s = (u8*)"\047[]"+1;
 			}
 		}
 		// need str ptr and length of search path
@@ -1158,9 +1158,9 @@ loop: // label for looping within the lexxer
 			// no variable exists yet, check start to determine
 			// if an array or an object should be created
 			if (start[(c->stk+3)->i]=='.'){
-				(c->stk+1)->s = (u8*)"{}";
+				(c->stk+1)->s = (u8*)"\047{}"+1;
 			} else {
-				(c->stk+1)->s = (u8*)"[]";
+				(c->stk+1)->s = (u8*)"\047[]"+1;
 			}
 		}
 		// need str ptr and length of search path
@@ -1217,9 +1217,9 @@ loop: // label for looping within the lexxer
 			// no variable exists yet, check start to determine
 			// if an array or an object should be created
 			if (start[(c->stk+3)->i]=='.'){
-				(c->stk+1)->s = (u8*)"{}";
+				(c->stk+1)->s = (u8*)"\047{}"+1;
 			} else {
-				(c->stk+1)->s = (u8*)"[]";
+				(c->stk+1)->s = (u8*)"\047[]"+1;
 			}
 		}
 		// need str ptr and length of search path

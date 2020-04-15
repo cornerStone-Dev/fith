@@ -448,27 +448,11 @@ int main(int argc, char **argv)
 	
 	SQL3_SETUP(fdb, "PRAGMA journal_mode=OFF;");
 	SQL3_SETUP(fdb, "CREATE TABLE fns(name TEXT PRIMARY KEY, addr INTEGER)WITHOUT ROWID;");
-	SQL3_SETUP(fdb, "CREATE TABLE vars(name TEXT PRIMARY KEY, val INTEGER, mkCpy INTEGER)WITHOUT ROWID;");
+	SQL3_SETUP(fdb, "CREATE TABLE vars(name TEXT PRIMARY KEY, val INTEGER)WITHOUT ROWID;");
 	SQL3_SETUP(fdb, "CREATE TABLE ptrs(addr INTEGER PRIMARY KEY);");
-	SQL3_SETUP(fdb, "CREATE TABLE garb(colMe INTEGER);"); // garbage collect me
+	SQL3_SETUP(fdb, "CREATE TABLE garb(bags INTEGER);"); // garbage to be collected
 	
-	
-	// end output fl_std file
-	//~ printf("argc: %d\n", argc);
-	//~ for (s32 x=0; x<argc; x++){
-		//~ printf("%d:%s\n", x, argv[x]);
-	//~ }
-	
-	if ( (argc > 1)
-	  && (argv[1][0]=='-')
-	  && (argv[1][1]=='d') 
-	  && (strlen(&argv[1][2])<498) ) 
-	{
-		dirName_p = (u8*)stpcpy((char *)dirName, &argv[1][2]);
-		dirName_p = (u8*)stpcpy((char *)dirName_p, "/");
-	} else {
-		dirName_p = (u8*)stpcpy((char *)dirName, DEFAULT_DIR);
-	}
+
 	u32 i=1;
 	if (argc > 1)
 	{
