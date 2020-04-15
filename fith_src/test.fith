@@ -151,12 +151,30 @@ $jsonObj p
  
 0 =$var.key.i $var p . 'test' p $var[aa] . p
 
-5 4 3 2 1 dep =$jsonAr4[?].i $jsonAr4 dup p jsort p
+5 4 3 2 1 dep . =$jsonAr4[?].i $jsonAr4 dup p jsort p
 'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
 5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p
 
+GC
 
+0
+begin
+	dup =$cart1[#].i
+	1 +
+	dup 100 ==
+until
+$cart1
+jeach  \first val on stack .
+	$cart1
+	jeach 
+		swap dup rot * =$cart2[#].i
+	jdone
+	\GC
+jdone
 
+GC
+
+\~ $cart2 p
 \ 1 2 3 4 5 depth =$var[?].i puts it all into array
  \~ \## REQUEST FOR COMMENT
 \~ jeach \ goes once per element in array, pushes JSON value onto stack

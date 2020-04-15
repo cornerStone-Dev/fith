@@ -404,10 +404,10 @@ int main(int argc, char **argv)
 	Data vars[512]={0};
 	//unsigned char file_name_buff[512] = {0};
 	unsigned char * output = output_string;
-	u8 dirName[512];
+	//u8 dirName[512];
 	Data cstack[128]={0};
 	u8 * words[128]={0};
-	u8 * dirName_p;
+	//u8 * dirName_p;
 	ScopeList scopeList={0};
 	ScopeList varList={0};
 	stringLitList strList={0};

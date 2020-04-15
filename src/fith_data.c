@@ -22,12 +22,6 @@ factor_map[]=
 };
 
 static u32
-chunk_factor[]=
-{
-0,1,2,3,4,5,6
-};
-
-static u32
 factor_size[]=
 {
 63,127,255,511,1023,2047,4095
@@ -62,18 +56,14 @@ logged_malloc_block(size_t bytes)
 		factor = bytes / 64;
 		return logged_malloc( size_of_chunk[factor], factor_map[factor] );
 	} else {
-		return logged_malloc( (bytes/512+1)*512, 7 );
+		return logged_malloc( (bytes/2048+1)*2048, 7 );
 	}
 }
 
 static void *
-allocation_need_check(u8 *input, u32 result_len, u32 input_factor)
+allocation_need_check(u8 *input, u32 input_factor, u32 result_len)
 {
 	u32 input_len;
-	if (input_factor==39) // string literal, new allocation
-	{
-		return logged_malloc_block(result_len);
-	}
 	
 	if (input_factor<7) // smaller allocation
 	{
@@ -83,14 +73,19 @@ allocation_need_check(u8 *input, u32 result_len, u32 input_factor)
 		} else {
 			return logged_malloc_block(result_len);
 		}
-	} else { // 7
+	} else { // 7 or more
+		if (input_factor==39) // string literal, new allocation
+		{
+			return logged_malloc_block(result_len);
+		}
+		// 7
 		input_len = strlen((const char *) input);
-		input_len = (input_len/512+1)*512;
+		input_len = (input_len/2048+1)*2048;
 		if ( result_len <= input_len )
 		{ // result will fit in current buffer
 			return (void *)input;
 		} else {
-			return logged_malloc( (result_len/512+1)*512, 7 );
+			return logged_malloc( (result_len/2048+1)*2048, 7 );
 		}
 	}
 }
@@ -263,12 +258,12 @@ fith_json_sort(u8 *json, Data *val)
 static u8 *
 fith_json_set_j(u8 *json, u8 *key, u8 *val)
 {
-	u8 buff[256];
 	const u8 *res;
 	u8 *ret;
-	s32 step;
-	
-	
+	u32 res_size, step;
+	u8 buff[256];
+
+	ret=json;
 	SQL3_QUERY_json_set_j(fdb,
 		"SELECT =?t:res json_set(?t@json, ?t@buff, json(?t@val));");
 	
@@ -283,8 +278,10 @@ fith_json_set_j(u8 *json, u8 *key, u8 *val)
 	step = SQL3_STEP_json_set_j();
 	if (step == SQLITE_ROW){
 		SQL3_COL_json_set_j();
-		ret = logged_malloc_block(SQL3_SIZE_json_set_j(0));
-		strcpy((char *)ret, (const char *)res);
+		res_size = SQL3_SIZE_json_set_j(0);
+		ret = logged_malloc_block(res_size+1);
+		memcpy(ret, res, res_size);
+		ret[res_size]=0; // null terminate
 	}
 	SQL3_RESET_json_set_j();
 	return ret;
@@ -299,11 +296,9 @@ fith_json_set_j_internal(u8 *json, u8 *key, u8 *val)
 {
 	const u8 *res;
 	u8 *ret;
-	u32 json_length, j_scale, new_scale;
+	u32 res_size;
 	u8 buff[256];
-	
-	json_length=strlen((const char *)json);
-	j_scale=json_length/64+1;
+
 	buff[0]='$';
 	buff[1]=0;
 	strcat((char *)buff,(const char *)key);
@@ -312,44 +307,11 @@ fith_json_set_j_internal(u8 *json, u8 *key, u8 *val)
 	
 	SQL3_STEP_json_set_j();
 	SQL3_COL_json_set_j();
-	// res now holds string, TODO make sqlite col bytes call
-	new_scale= strlen((const char *)res)/64+1;
-	/* res_len, json_factor, *res, *
-	 * result length
-	 * res_len = strlen((const char *)res);
-	 * divide by 64
-	 * new_scale = res_len/64;
-	 * get factor from scale if less than 63
-	 * if new_scale <64
-	 * new_factor= factor_map[new_scale];
-	 * else goto COMPARE SIZES DIRECTLY
-	 * read hidden byte
-	 * json_length = *(json-1);
-	 * if apostrophe this is a string literal from source MUST MAKE NEW ALLOCATION
-	 * if (json_length = 39) {
-	 *     MAKE NEW ALLOCATION
-	 *     allocate size_of_chunk[new_scale]
-	 * }
-	 * if(json_length>=new_factor)
-	 * REUSE CURRENTLY ALLOCATED SPACE
-	 * else
-	 * allocate factor_size[new_factor]
-	 * 
-	 * COMPARE SIZES DIRECTLY:
-	 * if( ( (json_length/512+1) *512)>=res_len ) {
-	 *     REUSE CURRENTLY ALLOCATED SPACE
-	 * else 
-	 * allocate (res_len/512+1) *512
-	 * 
-	 * COPY RESULT INTO RETURN POINTER
-	 * 
-	*/
-	if((json_length>2)&&(j_scale>=new_scale)) { // not a new json creation
-		ret = json;
-	} else { // new or previous size too small
-		ret = logged_malloc_block(new_scale*64);
-	}
-	strcpy((char *)ret, (const char *)res);
+	// res now holds string
+	res_size = SQL3_SIZE_json_set_j(0);
+	ret = allocation_need_check(json, *(json-1), res_size+1);
+	memcpy(ret, res, res_size);
+	ret[res_size]=0; // null terminate
 	SQL3_RESET_json_set_j();
 	return ret;
 }
@@ -357,11 +319,11 @@ fith_json_set_j_internal(u8 *json, u8 *key, u8 *val)
 static u8 *
 fith_json_set_s(u8 *json, u8 *key, u8 *val)
 {
-	u8 buff[256];
 	const u8 *res;
 	u8 *ret;
-	
-	
+	u32 res_size;
+	u8 buff[256];
+
 	SQL3_QUERY_json_set_s(fdb,
 		"SELECT =?t:res json_set(?t@json, ?t@buff, ?t@val);");
 	
@@ -371,12 +333,12 @@ fith_json_set_s(u8 *json, u8 *key, u8 *val)
 	
 	SQL3_BIND_json_set_s();
 	
-	/* prepare SQL query */
-	//~ n = 
 	SQL3_STEP_json_set_s();
 	SQL3_COL_json_set_s();
-	ret = logged_malloc_block(SQL3_SIZE_json_set_s(0));
-	strcpy((char *)ret, (const char *)res);
+	res_size = SQL3_SIZE_json_set_s(0);
+	ret = logged_malloc_block(res_size+1);
+	memcpy(ret, res, res_size);
+	ret[res_size]=0; // null terminate
 	SQL3_RESET_json_set_s();
 	return ret;
 }
@@ -386,11 +348,9 @@ fith_json_set_s_internal(u8 *json, u8 *key, u8 *val)
 {
 	const u8 *res;
 	u8 *ret;
-	u32 json_length, j_scale, new_scale;
+	u32 res_size;
 	u8 buff[256];
-	
-	json_length=strlen((const char *)json);
-	j_scale=json_length/64+1;
+
 	buff[0]='$';
 	buff[1]=0;
 	strcat((char *)buff,(const char *)key);
@@ -400,13 +360,10 @@ fith_json_set_s_internal(u8 *json, u8 *key, u8 *val)
 	SQL3_STEP_json_set_s();
 	SQL3_COL_json_set_s();
 	// res now holds string
-	new_scale=strlen((const char *)res)/64+1;
-	if((json_length>2)&&(j_scale>=new_scale)) { // not a new json creation
-		ret = json;
-	} else { // new or previous size too small
-		ret = logged_malloc_block(new_scale*64);
-	}
-	strcpy((char *)ret, (const char *)res);
+	res_size = SQL3_SIZE_json_set_s(0);
+	ret = allocation_need_check(json, *(json-1), res_size+1);
+	memcpy(ret, res, res_size);
+	ret[res_size]=0; // null terminate
 	SQL3_RESET_json_set_s();
 	return ret;
 }
@@ -414,11 +371,11 @@ fith_json_set_s_internal(u8 *json, u8 *key, u8 *val)
 static u8 *
 fith_json_set_i(u8 *json, u8 *key, s64 val)
 {
-	u8 buff[256];
 	const u8 *res;
 	u8 *ret;
-	
-	
+	u32 res_size;
+	u8 buff[256];
+
 	SQL3_QUERY_json_set_i(fdb,
 		"SELECT =?t:res json_set(?t@json, ?t@buff, ?i@val);");
 	
@@ -432,8 +389,10 @@ fith_json_set_i(u8 *json, u8 *key, s64 val)
 	//~ n = 
 	SQL3_STEP_json_set_i();
 	SQL3_COL_json_set_i();
-	ret = logged_malloc_block(SQL3_SIZE_json_set_i(0));
-	strcpy((char *)ret, (const char *)res);
+	res_size = SQL3_SIZE_json_set_i(0);
+	ret = logged_malloc_block(res_size+1);
+	memcpy(ret, res, res_size);
+	ret[res_size]=0; // null terminate
 	SQL3_RESET_json_set_i();
 	return ret;
 }
@@ -443,11 +402,9 @@ fith_json_set_i_internal(u8 *json, u8 *key, s64 val)
 {
 	const u8 *res;
 	u8 *ret;
-	u32 json_length, j_scale, new_scale;
+	u32 res_size;
 	u8 buff[256];
 	
-	json_length=strlen((const char *)json);
-	j_scale=json_length/64+1;
 	buff[0]='$';
 	buff[1]=0;
 	strcat((char *)buff,(const char *)key);
@@ -457,13 +414,10 @@ fith_json_set_i_internal(u8 *json, u8 *key, s64 val)
 	SQL3_STEP_json_set_i();
 	SQL3_COL_json_set_i();
 	// res now holds string
-	new_scale=strlen((const char *)res)/64+1;
-	if((json_length>2)&&(j_scale>=new_scale)) { // not a new json creation
-		ret = json;
-	} else { // new or previous size too small
-		ret = logged_malloc_block(new_scale*64);
-	}
-	strcpy((char *)ret, (const char *)res);
+	res_size = SQL3_SIZE_json_set_i(0);
+	ret = allocation_need_check(json, *(json-1), res_size+1);
+	memcpy(ret, res, res_size);
+	ret[res_size]=0; // null terminate
 	SQL3_RESET_json_set_i();
 	return ret;
 }
@@ -471,9 +425,10 @@ fith_json_set_i_internal(u8 *json, u8 *key, s64 val)
 static u8 *
 fith_json_set_d(u8 *json, u8 *key, f64 val)
 {
-	u8 buff[256];
 	const u8 *res;
 	u8 *ret;
+	u32 res_size;
+	u8 buff[256];
 	
 	
 	SQL3_QUERY_json_set_d(fdb,
@@ -489,8 +444,10 @@ fith_json_set_d(u8 *json, u8 *key, f64 val)
 	//~ n = 
 	SQL3_STEP_json_set_d();
 	SQL3_COL_json_set_d();
-	ret = logged_malloc_block(((strlen((const char *)res)/64+1)*64));
-	strcpy((char *)ret, (const char *)res);
+	res_size = SQL3_SIZE_json_set_d(0);
+	ret = logged_malloc_block(res_size+1);
+	memcpy(ret, res, res_size);
+	ret[res_size]=0; // null terminate
 	SQL3_RESET_json_set_d();
 	return ret;
 }
@@ -500,11 +457,9 @@ fith_json_set_d_internal(u8 *json, u8 *key, f64 val)
 {
 	const u8 *res;
 	u8 *ret;
-	u32 json_length, j_scale, new_scale;
+	u32 res_size;
 	u8 buff[256];
 	
-	json_length=strlen((const char *)json);
-	j_scale=json_length/64+1;
 	buff[0]='$';
 	buff[1]=0;
 	strcat((char *)buff,(const char *)key);
@@ -514,18 +469,14 @@ fith_json_set_d_internal(u8 *json, u8 *key, f64 val)
 	SQL3_STEP_json_set_d();
 	SQL3_COL_json_set_d();
 	// res now holds string
-	new_scale=strlen((const char *)res)/64+1;
-	if((json_length>2)&&(j_scale>=new_scale)) { // not a new json creation
-		ret = json;
-	} else { // new or previous size too small
-		ret = logged_malloc_block(new_scale*64);
-	}
-	strcpy((char *)ret, (const char *)res);
+	res_size = SQL3_SIZE_json_set_d(0);
+	ret = allocation_need_check(json, *(json-1), res_size+1);
+	memcpy(ret, res, res_size);
+	ret[res_size]=0; // null terminate
 	SQL3_RESET_json_set_d();
 	return ret;
 }
 
-// "SELECT json_set('{}', '$.type', 'bear');"
 
 static void
 save_function_addr(u8 *start, u64 len, u8 *addr)
@@ -629,6 +580,48 @@ get_variable(u8 *start, u64 len, s64 *val)
 	SQL3_RESET_get_variable();
 	return 1;
 }
+
+static void
+garbage_collect(void)
+{
+	s64 a;
+	s32 n,z=0;
+	SQL3_QUERY_gather_garbage(fdb,
+		"INSERT INTO garb SELECT addr FROM ptrs WHERE addr NOT IN (SELECT addr FROM vars, ptrs WHERE addr==val);");
+
+	n = SQL3_STEP_gather_garbage();
+	//printf("gather_garbage returned %d\n",n);
+	SQL3_RESET_gather_garbage();
+	
+	SQL3_QUERY_free_garbage(fdb,
+		"SELECT bags=?i:a FROM garb;");
+	
+	while ((n = SQL3_STEP_free_garbage())==SQLITE_ROW)
+	{
+		//printf("free_garbage returned %d\n",n);
+		SQL3_COL_free_garbage();
+		free((u8 *)(a-1));
+		z++;
+	}
+	//printf("free_garbage returned %d\n",n);
+	SQL3_RESET_free_garbage();
+	//printf("free_garbage freed %d pointers\n",z);
+	
+	SQL3_QUERY_delete_garbage_pointers(fdb,
+		"DELETE FROM ptrs WHERE addr IN (SELECT bags FROM garb);");
+	
+	n = SQL3_STEP_delete_garbage_pointers();
+	//printf("delete_garbage_pointers returned %d\n",n);
+	SQL3_RESET_delete_garbage_pointers();
+	
+	SQL3_QUERY_delete_garbage_bags(fdb,
+		"DELETE FROM garb;");
+	
+	n = SQL3_STEP_delete_garbage_bags();
+	//printf("delete_garbage_bags returned %d\n",n);
+	SQL3_RESET_delete_garbage_bags();
+}
+
 
 static __inline s64 CMP_INT(s64 x,s64 y)
 {
@@ -784,5 +777,11 @@ void MERGE_SORT_s64(s64 *dst, const size_t size) {
 	MERGE_SORT_RECURSIVE_s64(newdst, dst, size);
 	free(newdst);
 }
+
+
+
+
+
+
 
 

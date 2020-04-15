@@ -691,6 +691,11 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	"GC" {
+		garbage_collect();
+		goto loop;
+	}
+	
 	"sort" {
 		DECREMENT_STACK
 		if(c->stk-c->stk_start<c->stk->i){
