@@ -87,7 +87,18 @@ typedef struct context_s{
 
 static sqlite3 *fdb;
 
+
 /* function prototypes */
+static void *
+logged_malloc(size_t bytes, u8 factor);
+static void *
+logged_malloc_block(size_t bytes);
+static void
+save_function_addr(u8 *start, u64 len, u8 *addr);
+static void
+save_variable(u8 *start, u64 len, s64 val);
+
+
 //~ static s32
 //~ add_to(ScopeList * restrict str_l, u8 * restrict s, u32  l);
 //~ static s32
@@ -140,6 +151,32 @@ print_code(const u8 *str, u32 len)
 		}
 		fputc (str[x], stdout);
 	}
+}
+
+static u8 *
+load_file(u8 *file_name)
+{
+	FILE *pFile;
+	u8 * buffer;
+	size_t fileSize, result;
+	
+	pFile = fopen ( (char *)file_name, "rb" );
+	if (pFile==NULL) {fputs ("File error, cannot open source file\n",stderr); exit (1);}
+	// obtain file size:
+	fseek(pFile , 0 , SEEK_END);
+	fileSize = ftell(pFile);
+	rewind(pFile);
+	// allocate memory to contain the whole file:
+	buffer = logged_malloc_block(fileSize+1);
+	if (buffer == NULL) {fputs ("Memory error\n",stderr); exit (2);}
+	// copy the file into the buffer:
+	result = fread (buffer,1,fileSize,pFile);
+	if (result != fileSize) {fputs ("Reading error\n",stderr); exit (3);}
+	/* 0x03 terminate buffer */
+	buffer[fileSize]=3;
+	fclose (pFile);
+	save_variable(file_name, strlen((const char *)file_name), (s64)buffer);
+	return (u8*)buffer;
 }
 
 // new strat: manage buffer only, then regen current line every time
@@ -415,9 +452,6 @@ int main(int argc, char **argv)
 	u32 x, inputLen,z;
 	Context c = {0};
 	FILE * pFile;
-	size_t lSize;
-	unsigned char * buffer;
-	size_t result;
 	DIR *d=0;
 	struct dirent *dir;
 	output_string[0]=3;
@@ -591,27 +625,7 @@ int main(int argc, char **argv)
 
 		one_file:
 		
-		pFile = fopen ( (char *)c.file_name_buff, "rb" );
-		if (pFile==NULL) {fputs ("File error, cannot open source file\n",stderr); exit (1);}
-		
-		
-		
-		// obtain file size:
-		fseek (pFile , 0 , SEEK_END);
-		lSize = ftell (pFile);
-		rewind (pFile);
-
-		// allocate memory to contain the whole file:
-		buffer = (unsigned char*) malloc (sizeof(char)*lSize+1);
-		if (buffer == NULL) {fputs ("Memory error\n",stderr); exit (2);}
-		data = buffer;
-
-		// copy the file into the buffer:
-		result = fread (buffer,1,lSize,pFile);
-		if (result != lSize) {fputs ("Reading error\n",stderr); exit (3);}
-		
-		/* 0x03 terminate buffer */
-		buffer[lSize]=3;
+		data = load_file(c.file_name_buff);
 		
 		do {
 			tmp_token = lex(data, &c.line_num, &c);
@@ -619,12 +633,7 @@ int main(int argc, char **argv)
 			//Parse(pEngine, tmp_token, token);
 			
 		} while (tmp_token != 0);
-		
-		
 
-		fclose (pFile);
-		/* free memory that stored copy of file */
-		free (buffer);
 		}
 		if (c.is_def)
 		{

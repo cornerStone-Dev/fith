@@ -301,6 +301,23 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	":" {
+		c->stk->s = YYCURSOR;
+		INCREMENT_STACK
+		YYCURSOR-=lex_if_else(&YYCURSOR, 2); // skip definition
+		goto loop;
+	}
+	
+	"call" {
+		DECREMENT_STACK
+		// save off return
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		// jump to function
+		YYCURSOR = c->stk->s;
+		goto loop;
+	}
+	
 	"return" {
 		// pop command stack
 		c->cstk--;
