@@ -980,7 +980,7 @@ loop: // label for looping within the lexxer
 					c->yycur=0;
 					goto loop;
 				}
-				if (!(strncmp((const char *)c->file_name_buff, ".step", 5)))
+				if (!(strncmp((const char *)c->file_name_buff, ".s", 2)))
 				{
 					YYCURSOR = c->yycur;
 					c->is_step=1;

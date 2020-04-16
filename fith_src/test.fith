@@ -151,7 +151,7 @@ $jsonObj p
  
 0 =$var.key.i $var p . 'test' p $var[aa] . p
 
-'fith_src/script.fith' load
+\'fith_src/script.fith' load
 
 5 4 3 2 1 dep . =$jsonAr4[?].i $jsonAr4 dup p jsort p
 'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
@@ -175,6 +175,8 @@ jeach  \first val on stack .
 jdone
 
 GC
+
+: 'hello from anon function' p ; call
 
 \~ $cart2 p
 \ 1 2 3 4 5 depth =$var[?].i puts it all into array
