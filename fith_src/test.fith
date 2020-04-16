@@ -151,6 +151,8 @@ $jsonObj p
  
 0 =$var.key.i $var p . 'test' p $var[aa] . p
 
+'fith_src/script.fith' load
+
 5 4 3 2 1 dep . =$jsonAr4[?].i $jsonAr4 dup p jsort p
 'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
 5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p

@@ -318,6 +318,16 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+		"load" {
+		DECREMENT_STACK
+		(c->stk+1)->s = load_file(c->stk->s,1);
+		// save off return in command stack
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		YYCURSOR = (c->stk+1)->s;
+		goto loop;
+	}
+	
 	"return" {
 		// pop command stack
 		c->cstk--;
@@ -697,7 +707,7 @@ loop: // label for looping within the lexxer
 		(c->stk-1)->s= realloc ((c->stk-2)->s, (c->stk-1)->i);
 		if ((c->stk-1)->s == 0 )
 		{
-			printf("malloc error!!!\n");
+			printf("realloc error!!!\n");
 		}
 		goto loop;
 	}

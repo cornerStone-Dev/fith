@@ -154,7 +154,7 @@ print_code(const u8 *str, u32 len)
 }
 
 static u8 *
-load_file(u8 *file_name)
+load_file(u8 *file_name, u8 as_function)
 {
 	FILE *pFile;
 	u8 * buffer;
@@ -167,13 +167,18 @@ load_file(u8 *file_name)
 	fileSize = ftell(pFile);
 	rewind(pFile);
 	// allocate memory to contain the whole file:
-	buffer = logged_malloc_block(fileSize+1);
+	buffer = logged_malloc_block(fileSize+2);
 	if (buffer == NULL) {fputs ("Memory error\n",stderr); exit (2);}
 	// copy the file into the buffer:
 	result = fread (buffer,1,fileSize,pFile);
 	if (result != fileSize) {fputs ("Reading error\n",stderr); exit (3);}
-	/* 0x03 terminate buffer */
-	buffer[fileSize]=3;
+	/* 0x03 terminate buffer, leave return in sub file */
+	if (as_function){
+		buffer[fileSize]=';';
+		buffer[fileSize+1]=3;
+	} else {
+		buffer[fileSize]=3;
+	}
 	fclose (pFile);
 	save_variable(file_name, strlen((const char *)file_name), (s64)buffer);
 	return (u8*)buffer;
@@ -625,7 +630,7 @@ int main(int argc, char **argv)
 
 		one_file:
 		
-		data = load_file(c.file_name_buff);
+		data = load_file(c.file_name_buff, 0);
 		
 		do {
 			tmp_token = lex(data, &c.line_num, &c);
