@@ -157,15 +157,14 @@ $jsonObj p
 'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
 5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p
 
-GC
-
+.
 0
 begin
 	dup =$cart1[#].i
 	1 +
-	dup 100 ==
+	dup 99 ==
 until
-$cart1
+$cart1 .
 jeach  \first val on stack .
 	$cart1
 	jeach 
@@ -174,11 +173,10 @@ jeach  \first val on stack .
 	\GC
 jdone
 
-GC
 
 : 'hello from anon function' p ; call
 
-\~ $cart2 p
+\ $cart2 p
 \ 1 2 3 4 5 depth =$var[?].i puts it all into array
  \~ \## REQUEST FOR COMMENT
 \~ jeach \ goes once per element in array, pushes JSON value onto stack

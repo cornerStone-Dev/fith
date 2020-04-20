@@ -418,6 +418,7 @@ if (c->stk<c->stk_end) \
 } else \
 { printf("stack overflow!!!\n"); }
 
+#include "fith_avl.c"
 #include "fith_data.c"
 #include "../tool_output/fith_lex.c"
 //#include "../tool_output/fl_c_gram.c"

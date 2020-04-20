@@ -532,53 +532,73 @@ get_function_addr(u8 *start, u64 len)
 static void
 save_variable(u8 *start, u64 len, s64 val)
 {
-	s64 a=(s64)val;
+	u8 tmp;
 	//~ s32 n;
 	//~ for(u32 u=0; u<len; u++)
 	//~ {
 		//~ fputc (start[u], stdout);
 	//~ }
 	//~ fputc ('\n', stdout);
-	SQL3_QUERY_insert_variable(fdb,
-		"INSERT INTO vars(name, val) VALUES("
-		"?t@start$len, ?i@a)"
-		"ON CONFLICT(name) DO UPDATE SET val=excluded.val;");
 	
-	SQL3_BIND_insert_variable();
+	tmp=start[len];
+	start[len]=0;
+	StringTos64Tree_insert(&vars, start, len, val);
+	start[len]=tmp;
 	
-	/* prepare SQL query */
+	//~ SQL3_QUERY_insert_variable(fdb,
+		//~ "INSERT INTO vars(name, val) VALUES("
+		//~ "?t@start$len, ?i@a)"
+		//~ "ON CONFLICT(name) DO UPDATE SET val=excluded.val;");
+	
+	//~ SQL3_BIND_insert_variable();
+	
+	//~ /* prepare SQL query */
 	//~ n = 
-	SQL3_STEP_insert_variable();
-	SQL3_RESET_insert_variable();
+	//~ SQL3_STEP_insert_variable();
+	//~ SQL3_RESET_insert_variable();
 	//printf("SQL3_STEP_insert_fn_addr returned %d, len=%d\n",n,len);
 }
 
 static s32
 get_variable(u8 *start, u64 len, s64 *val)
 {
-	s64 a;
-	s32 n;
+	StringTos64Node node;
+	u8 tmp;
 	//~ for(u32 u=0; u<len; u++)
 	//~ {
 		//~ fputc (start[u], stdout);
 	//~ }
 	//~ fputc ('\n', stdout);
-	SQL3_QUERY_get_variable(fdb,
-		"SELECT val=?i:a FROM vars WHERE name=?t@start$len;");
 	
-	SQL3_BIND_get_variable();
 	
-	/* prepare SQL query */
-	n = SQL3_STEP_get_variable();
-	//printf("SQL3_STEP_get_fn_addr returned %d, len=%d\n",n,len);
-	if (n!=SQLITE_ROW){ // we have a previous entry
-		SQL3_RESET_get_variable();
+	tmp=start[len];
+	start[len]=0;
+	node=StringTos64Tree_find(vars, start);
+	if (node==0)
+	{
+		start[len]=tmp;
 		return 0;
 	}
-	SQL3_COL_get_variable();
-	*val=a;
-	SQL3_RESET_get_variable();
+	start[len]=tmp;
+	*val=node->val;
 	return 1;
+	
+	//~ SQL3_QUERY_get_variable(fdb,
+		//~ "SELECT val=?i:a FROM vars WHERE name=?t@start$len;");
+	
+	//~ SQL3_BIND_get_variable();
+	
+	//~ /* prepare SQL query */
+	//~ n = SQL3_STEP_get_variable();
+	//~ //printf("SQL3_STEP_get_fn_addr returned %d, len=%d\n",n,len);
+	//~ if (n!=SQLITE_ROW){ // we have a previous entry
+		//~ SQL3_RESET_get_variable();
+		//~ return 0;
+	//~ }
+	//~ SQL3_COL_get_variable();
+	//~ *val=a;
+	//~ SQL3_RESET_get_variable();
+	//~ return 1;
 }
 
 static void

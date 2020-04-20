@@ -238,7 +238,24 @@ loop: // label for looping within the lexxer
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
-	* { printf("lex failure"); goto loop; } //   default rule with its semantic action start =YYCURSOR;
+	* { 
+		u8 *s=start;
+		u8 *f=YYCURSOR;
+		while (*s!='\n'){
+			s--;
+		}
+		s++;
+		while (*f!='\n'){
+			f++;
+		}
+		s++;
+		printf("lex failure ");
+		for (u32 ss=0; ss <(f-s); ss++){
+			fputc ( s[ss], stdout);
+		}
+		fputc ( '\n', stdout);
+		goto loop; 
+	} //   default rule with its semantic action start =YYCURSOR;
 	[\x03] { return 0; }             // EOF rule with 0x03 sentinal
 	
 	wsp {
