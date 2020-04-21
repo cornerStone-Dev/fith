@@ -157,12 +157,13 @@ $jsonObj p
 'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
 5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p
 
-.
+
+GC
 0
 begin
 	dup =$cart1[#].i
 	1 +
-	dup 99 ==
+	dup 200 ==
 until
 $cart1 .
 jeach  \first val on stack .
@@ -170,7 +171,7 @@ jeach  \first val on stack .
 	jeach 
 		swap dup rot * =$cart2[#].i
 	jdone
-	\GC
+	GC
 jdone
 
 

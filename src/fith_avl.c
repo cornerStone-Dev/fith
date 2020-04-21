@@ -17,17 +17,17 @@ typedef struct StringTos64Node_s {
 	u8                        key[5];
 } *StringTos64Node;
 
-StringTos64Node fns, vars;
+static StringTos64Node fns, vars;
 
 typedef struct StringTos64Nodenfo_s {
    struct StringTos64Node_s *n;
-   int comeFrom;
+   s32 comeFrom;
 } NodeInfo_i;
 
 typedef struct trav_state_s {
    NodeInfo_i stack[48];
-   int idx;
-   int state;
+   s32 idx;
+   s32 state;
 } TravState_i;
 
 

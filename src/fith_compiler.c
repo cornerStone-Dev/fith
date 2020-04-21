@@ -480,6 +480,9 @@ int main(int argc, char **argv)
 	varList.end=&varList.table[65535];
 	strBuff = stringBuffer;
 	
+	ptrs.p = malloc(4096);
+	ptrs.hw=511;
+	
 	sqlite3_initialize();
 	sqlite3_open(":memory:", &fdb);
 	
@@ -487,10 +490,10 @@ int main(int argc, char **argv)
 	fdb_PREPARE();
 	
 	SQL3_SETUP(fdb, "PRAGMA journal_mode=OFF;");
-	SQL3_SETUP(fdb, "CREATE TABLE fns(name TEXT PRIMARY KEY, addr INTEGER)WITHOUT ROWID;");
-	SQL3_SETUP(fdb, "CREATE TABLE vars(name TEXT PRIMARY KEY, val INTEGER)WITHOUT ROWID;");
-	SQL3_SETUP(fdb, "CREATE TABLE ptrs(addr INTEGER PRIMARY KEY);");
-	SQL3_SETUP(fdb, "CREATE TABLE garb(bags INTEGER);"); // garbage to be collected
+	//SQL3_SETUP(fdb, "CREATE TABLE fns(name TEXT PRIMARY KEY, addr INTEGER)WITHOUT ROWID;");
+	//SQL3_SETUP(fdb, "CREATE TABLE vars(name TEXT PRIMARY KEY, val INTEGER)WITHOUT ROWID;");
+	//SQL3_SETUP(fdb, "CREATE TABLE ptrs(addr INTEGER PRIMARY KEY);");
+	//SQL3_SETUP(fdb, "CREATE TABLE garb(bags INTEGER);"); // garbage to be collected
 	
 
 	u32 i=1;

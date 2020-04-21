@@ -27,22 +27,31 @@ factor_size[]=
 63,127,255,511,1023,2047,4095
 };
 
+
+typedef struct ptrs_s {
+	u8 **p;
+	u32 i;
+	u32 hw;
+} Ptrs;
+static Ptrs ptrs;
 // returns a pointer to one
 static void *
 logged_malloc(size_t bytes, u8 factor)
 {
-	u8 *f;
-	s64 a;
+	u8 *f, *tmp;
 	f = malloc(bytes+1);
 	*f=factor;
 	f++;
-	a= (s64)f;
-	SQL3_QUERY_insert_ptr_addr(fdb,
-		"INSERT INTO ptrs VALUES("
-		"?i@a);");
-	SQL3_BIND_insert_ptr_addr();
-	SQL3_STEP_insert_ptr_addr();
-	SQL3_RESET_insert_ptr_addr();
+	ptrs.p[ptrs.i] = f;
+	ptrs.i++;
+	if(ptrs.i>ptrs.hw){
+		ptrs.hw+=512;
+		tmp = realloc(ptrs.p, (ptrs.hw/512+1)*4096);
+		if (tmp==0){
+			printf("OUT OF MEMORY!!!"); exit(1);
+		}
+		ptrs.p=(u8 **)tmp;
+	}
 	return (void *)f;
 }
 
@@ -137,14 +146,14 @@ fith_json_extract(u8 *json, u8 *key, Data *val)
 			case 'f': // false
 			goto copy_exit;
 			case 'i': // integer
-			val->i=sqlite3_column_int64(fdb_stmt_array[fdb_enum3], 1);
+			val->i=sqlite3_column_int64(fdb_stmt_array[fdb_enum2], 1);
 			goto reset_exit;
 			case 'n': // null
 			goto copy_exit;
 			case 'o': // object
 			goto text_exit;
 			case 'r': // real
-			val->d=sqlite3_column_double(fdb_stmt_array[fdb_enum3], 1);
+			val->d=sqlite3_column_double(fdb_stmt_array[fdb_enum2], 1);
 			goto reset_exit;
 			case 't': // true or text
 			if (res[1]=='r') { // true
@@ -154,7 +163,7 @@ fith_json_extract(u8 *json, u8 *key, Data *val)
 			default: step=-1;goto reset_exit;
 		}
 		text_exit:
-		res=sqlite3_column_text(fdb_stmt_array[fdb_enum3], 1);
+		res=sqlite3_column_text(fdb_stmt_array[fdb_enum2], 1);
 		copy_exit:
 		ret = logged_malloc_block(SQL3_SIZE_json_extract(1));
 		strcpy((char *)ret, (const char *)res);
@@ -538,45 +547,33 @@ get_variable(u8 *start, u64 len, s64 *val)
 	return 1;
 }
 
-static void
-garbage_collect(void)
+// binary search of a sorted array of s64
+static s64
+fith_binary_search(s64 *array, s64 size, s64 target)
 {
-	s64 a;
-	s32 n,z=0;
-	SQL3_QUERY_gather_garbage(fdb,
-		"INSERT INTO garb SELECT addr FROM ptrs WHERE addr NOT IN (SELECT addr FROM vars, ptrs WHERE addr==val);");
-
-	n = SQL3_STEP_gather_garbage();
-	//printf("gather_garbage returned %d\n",n);
-	SQL3_RESET_gather_garbage();
+	s64 diff;
+	s64 min, max, search_index;
 	
-	SQL3_QUERY_free_garbage(fdb,
-		"SELECT bags=?i:a FROM garb;");
-	
-	while ((n = SQL3_STEP_free_garbage())==SQLITE_ROW)
-	{
-		//printf("free_garbage returned %d\n",n);
-		SQL3_COL_free_garbage();
-		free((u8 *)(a-1));
-		z++;
+	min = 0;
+	max = size - 1;
+	while(1){
+		if (max < min)
+		{
+			return -1;
+		}
+		search_index = (min + max) / 2;
+		diff = target - array[search_index];
+		if (diff==0)
+		{
+			return search_index;
+		}
+		if(diff>0)
+		{
+			min = search_index + 1;
+		} else {
+			max = search_index - 1;
+		}
 	}
-	//printf("free_garbage returned %d\n",n);
-	SQL3_RESET_free_garbage();
-	//printf("free_garbage freed %d pointers\n",z);
-	
-	SQL3_QUERY_delete_garbage_pointers(fdb,
-		"DELETE FROM ptrs WHERE addr IN (SELECT bags FROM garb);");
-	
-	n = SQL3_STEP_delete_garbage_pointers();
-	//printf("delete_garbage_pointers returned %d\n",n);
-	SQL3_RESET_delete_garbage_pointers();
-	
-	SQL3_QUERY_delete_garbage_bags(fdb,
-		"DELETE FROM garb;");
-	
-	n = SQL3_STEP_delete_garbage_bags();
-	//printf("delete_garbage_bags returned %d\n",n);
-	SQL3_RESET_delete_garbage_bags();
 }
 
 
@@ -620,7 +617,8 @@ static __inline void INSERTION_SORT_s64(s64 *dsti, const size_t size)
 }
 
 /* Standard merge sort */
-void MERGE_SORT_RECURSIVE_s64(s64 *newdsti, s64 *dsti, const size_t size) {
+static void
+MERGE_SORT_RECURSIVE_s64(s64 *newdsti, s64 *dsti, const size_t size) {
 	s64 *newdst=newdsti;
 	s64 *dst=dsti;
 	const size_t middle = size / 2;
@@ -711,7 +709,8 @@ static int REVERSE_SORT_s64(s64 *dsti, const size_t size)
 }
 
 /* Standard merge sort */
-void MERGE_SORT_s64(s64 *dst, const size_t size) {
+static void
+MERGE_SORT_s64(s64 *dst, const size_t size) {
 	s64 *newdst;
 
 	/* don't bother sorting an array of size <= 1 */
@@ -735,8 +734,40 @@ void MERGE_SORT_s64(s64 *dst, const size_t size) {
 	free(newdst);
 }
 
-
-
+static void
+garbage_collect(void)
+{
+	s64 result;
+	StringTos64Node n;
+	TravState_i s={0};
+	s32 z=0,i=0;
+	s64 variables[2048];
+	
+	// walk through all the variables recording their values
+	while ( (n = StringTos64Tree_traverse(vars, &s)) ){
+		variables[i]= n->val;
+		i++;
+	}
+	//printf("gathered %d vars\n",i);
+	// sort vars
+	MERGE_SORT_s64(variables, i);
+	// for each logged pointer search vars for a match
+	// if non is found free the pointer
+	// if a match is found write it back over the array to save it
+	for(u32 y=0;y<ptrs.i;y++)
+	{
+		result = fith_binary_search(variables, i, (s64)ptrs.p[y]);
+		if (result < 0){ // not found
+			free((u8 *)((ptrs.p[y])-1));
+		} else {
+			ptrs.p[z]=ptrs.p[y];
+			z++;
+		}
+	}
+	//printf("freed %d pointers\n",(ptrs.i-z));
+	//printf("ptrs.i is now %d\n",z);
+	ptrs.i = z;
+}
 
 
 
