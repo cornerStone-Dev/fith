@@ -45,6 +45,7 @@
 	// json get
 	var_get_json = "$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+; // get JSON string
 	// json set
+	var_assign_array = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+; // assign JSON string
 	var_assign_json_s = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".s"; // assign JSON string
 	var_assign_json_i = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".i"; // assign JSON string
 	var_assign_json_d = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".d"; // assign JSON string
@@ -550,7 +551,7 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
-	"!" {
+	"not" {
 		(c->stk-1)->i = !((c->stk-1)->i);
 		goto loop;
 	}
@@ -563,6 +564,12 @@ loop: // label for looping within the lexxer
 	
 	"over" {
 		c->stk->i = (c->stk-2)->i;
+		INCREMENT_STACK
+		goto loop;
+	}
+	
+	"pick" {
+		c->stk->i = (c->stk-3)->i;
 		INCREMENT_STACK
 		goto loop;
 	}
@@ -737,6 +744,14 @@ loop: // label for looping within the lexxer
 	
 	"GC" {
 		garbage_collect();
+		goto loop;
+	}
+	
+	"array" {
+		// allocate array with padding for 7 byte header (memory log =1 byte)
+		(c->stk-1)->s = logged_malloc_block(((c->stk-1)->i*8)+7);
+		// tag header with invalid utf-8
+		*(c->stk-1)->s = 0xFF;
 		goto loop;
 	}
 	
@@ -1058,6 +1073,13 @@ loop: // label for looping within the lexxer
 			fputc ('\n', stdout);
 			goto loop;
 		}
+		// check if this is an array
+		if(*(c->stk+1)->s == 0xFF) // regular array
+		{
+			(c->stk-1)->v = (Data *)((c->stk+1)->s+7+(8*(c->stk-1)->i));
+			(c->stk-1)->i = (c->stk-1)->v->i;
+			goto loop;
+		}
 		// need str ptr and length of search path
 		(c->stk+4)->s = &start[(c->stk+3)->i];
 		(c->stk+2)->i = *YYCURSOR; // save off ending
@@ -1307,6 +1329,31 @@ loop: // label for looping within the lexxer
 		*(YYCURSOR-2) = (c->stk+2)->i;
 		// will try to insert unique name, if fails will update value only
 		save_variable(start, (c->stk+3)->i, c->stk->i);
+		goto loop;
+	}
+
+	var_assign_array {
+		start+=2;
+		DECREMENT_STACK
+		DECREMENT_STACK
+		// assign value into array c->stk->i=val, (c->stk+1)->i = index
+		(c->stk+4)->i=1;
+		while((start[(c->stk+4)->i]!='.')&&(start[(c->stk+4)->i]!='[')){
+			(c->stk+4)->i++;
+		}
+		// (c->stk+3)->i is now the length
+		// get variable value
+		(c->stk+3)->i = get_variable(start, (c->stk+4)->i, &(c->stk+2)->i);
+		if ((c->stk+3)->i==0){
+			printf("Cannot find variable name!!!");
+			print_code(start, (YYCURSOR - start));
+			fputc ('\n', stdout);
+			goto loop;
+		}
+		// variable value is in (c->stk+2), now move to address
+		(c->stk+3)->v = (Data *)((c->stk+2)->s+7+(8*(c->stk+1)->i));
+		// write value into address
+		(c->stk+3)->v->i = c->stk->i;
 		goto loop;
 	}
 

@@ -24,8 +24,8 @@ then then then then
 drop
 
 \ regular funtions with a loop test
-divisibleBy5?: dup 5 % ! ;
-divisibleBy3?: dup 3 % ! ;
+divisibleBy5?: dup 5 % not ;
+divisibleBy3?: dup 3 % not ;
 
 0 10
 begin
@@ -157,25 +157,39 @@ $jsonObj p
 'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
 5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p
 
+indexInc: $index dup 1 + =$index ;
 
+0 =$index
+5 =$matrix
+100 =$sizeOfMatrix
+
+$sizeOfMatrix $sizeOfMatrix * . array =$matrix
+
+10 5 =$matrix[]
+
+5 $matrix[] . drop
+.
 GC
 0
 begin
 	dup =$cart1[#].i
 	1 +
-	dup 200 ==
+	dup $sizeOfMatrix ==
 until
-$cart1 .
+drop
+$cart1 . 
 jeach  \first val on stack .
 	$cart1
 	jeach 
-		swap dup rot * =$cart2[#].i
+		 over * indexInc =$matrix[]
 	jdone
-	GC
+	drop \GC
 jdone
 
+\=$cart2[#].i
 
-: 'hello from anon function' p ; call
+\~ .
+\~ : 'hello from anon function' p ; call
 
 \ $cart2 p
 \ 1 2 3 4 5 depth =$var[?].i puts it all into array
