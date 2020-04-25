@@ -27,6 +27,12 @@ factor_size[]=
 63,127,255,511,1023,2047,4095
 };
 
+typedef struct var_data_s {
+	s64 *v;
+	u32 i;
+	u32 hw;
+} Vars;
+static Vars var_data;
 
 typedef struct ptrs_s {
 	u8 **p;
@@ -34,6 +40,7 @@ typedef struct ptrs_s {
 	u32 hw;
 } Ptrs;
 static Ptrs ptrs;
+
 // returns a pointer to one
 static void *
 logged_malloc(size_t bytes, u8 factor)
@@ -520,12 +527,33 @@ get_function_addr(u8 *start, u64 len)
 static void
 save_variable(u8 *start, u64 len, s64 val)
 {
+	StringTos64Node node;
+	u8 *p;
+	u32 index;
 	u8 tmp;
 	
 	tmp=start[len];
 	start[len]=0;
-	StringTos64Tree_insert(&vars, start, len, val);
-	start[len]=tmp;
+	node=StringTos64Tree_find(vars, start);
+	if (node==0) // no variable saved
+	{
+		var_data.v[var_data.i] = val;
+		index = var_data.i;
+		var_data.i++;
+		if(var_data.i>var_data.hw){
+			var_data.hw+=512;
+			p = realloc(var_data.v, (var_data.hw/512+1)*4096);
+			if (p==0){
+				printf("OUT OF MEMORY!!!"); exit(1);
+			}
+			var_data.v=(s64 *)p;
+		}
+		StringTos64Tree_insert(&vars, start, len, index);
+		start[len]=tmp;
+	} else {
+		var_data.v[node->val] = val;
+		start[len]=tmp;
+	}
 }
 
 static s32
@@ -543,7 +571,7 @@ get_variable(u8 *start, u64 len, s64 *val)
 		return 0;
 	}
 	start[len]=tmp;
-	*val=node->val;
+	*val=var_data.v[node->val];
 	return 1;
 }
 

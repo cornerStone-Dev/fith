@@ -483,6 +483,9 @@ int main(int argc, char **argv)
 	ptrs.p = malloc(4096);
 	ptrs.hw=511;
 	
+	var_data.v = malloc(4096);
+	ptrs.hw=511;
+	
 	sqlite3_initialize();
 	sqlite3_open(":memory:", &fdb);
 	

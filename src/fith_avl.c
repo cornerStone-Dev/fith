@@ -7,7 +7,7 @@
 #define LEFT 0
 #define RIGHT 1
 #define NEITHER -1
-typedef int s32;
+
 typedef struct StringTos64Node_s {
 	struct StringTos64Node_s *next[2];
 	s64                       val;

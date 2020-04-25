@@ -1,6 +1,6 @@
 \ simple tests
 \debug
-3 8 + 11 != if 'math error' p then
+first_test: 3 8 + 11 != if 'math error' p then ;
 
 \ multi line string
 '
@@ -11,54 +11,62 @@ World!
 7 6 8 9 drop drop drop drop 
 
 \ test if else chain, use random
-random abs 3 &
-dup 0 == if
-	'zero' p
-else dup 1 == if
-	'one' p
-else dup 2 == if
-	'two' p
-else dup 3 == if
-	'three' p
-then then then then
-drop
+random_if_else:
+	random abs 3 &
+	dup 0 == if
+		'zero' p
+	else dup 1 == if
+		'one' p
+	else dup 2 == if
+		'two' p
+	else 3 == if
+		'three' p
+	then then then then
+;
+
 
 \ regular funtions with a loop test
 divisibleBy5?: dup 5 % not ;
 divisibleBy3?: dup 3 % not ;
 
-0 10
-begin
-	1 -
-	divisibleBy5? \ true if multiple of 5
-	if 
-		swap over + swap
-	else  
-		divisibleBy3? \ true if multiple of 3
+factors_of:
+	0 10
+	begin
+		1 -
+		divisibleBy5? \ true if multiple of 5
 		if 
 			swap over + swap
+		else  
+			divisibleBy3? \ true if multiple of 3
+			if 
+				swap over + swap
+			then
 		then
-	then
-	
-	dup 1 ==
-until
-drop 23 != if '3 and 5 test faillure' p then
+		
+		dup 1 ==
+	until
+	drop 23 != if '3 and 5 test faillure' p then
+;
 
-5.5 6.3 f+ 11.8 != if 'floating point is not equal' p then
+floating?: 5.5 6.3 f+ 11.8 != if 'floating point is not equal' p then ;
 
 \ child function to send message, read message from parent and send done
-childSend: $chan1 'Hello, parent!' writes 'finished sending msg to parent' p 
-$chan1 $buf 128 reads 'From Parent:' p p 
-$chan1 'done' writes ;
+childSend:
+	$chan1 'Hello, parent!' writes 'finished sending msg to parent' p 
+	$chan1 $buf 128 reads 'From Parent:' p p 
+	$chan1 'done' writes 
+;
 
-\ prepare for transfer, need to add close word
-chan =$chan1 =$chan0 \ take up channel file descriptors
-128 malloc =$buf \ create and save buffer
-childSend@ fork =$pid \ create child process save off pid
-$chan0 $buf 128 reads 'From child:' p p \ read message from child
-$chan0 'Hello, child!' writes 'finished sending msg to child' p \send message 2 child
-$chan0 $buf 128 reads 'done' 5 memcmp 0 != if 'message not expected' then \ read message from child
-
+fork_and_talk:
+	\ prepare for transfer, need to add close word
+	chan =$chan1 =$chan0 \ take up channel file descriptors
+	128 malloc =$buf \ create and save buffer
+	childSend@ fork =$pid \ create child process save off pid
+	$chan0 $buf 128 reads 'From child:' p p \ read message from child
+	$chan0 'Hello, child!' writes 'finished sending msg to child' p \send message 2 child
+	$chan0 $buf 128 reads 'done' 5 memcmp 0 != if 'message not expected' then \ read message from child
+;
+if_else_chain:
 \ if else check
  1 if 
 	'If true' p
@@ -84,6 +92,7 @@ else
 	then
 then 
 'Always' p 
+;
 
 \ loop factorial
 5 0 swap                           \ place a zero below n
@@ -107,69 +116,75 @@ fact:
 $num $bum $fum + + =$fum $fum
 =$num $num 297 != if 'variable overwite fail' then
 
-\ json input addr, string key, value, typed function, suck up pointer, output and print 
-'{}' '.type' 'bear' json_set_s =$json1 $json1 p
-$json1 '.numFeet' 2   json_set_i =$json1 $json1 p
-$json1 '.weight' 7.8  json_set_d =$json1 $json1 p
+JSON_regression_test:
+	\ json input addr, string key, value, typed function, suck up pointer, output and print 
+	'{}' '.type' 'bear' json_set_s =$json1 $json1 p
+	$json1 '.numFeet' 2   json_set_i =$json1 $json1 p
+	$json1 '.weight' 7.8  json_set_d =$json1 $json1 p
 
-\ json input addr, string key, value, typed function, suck up pointer, output and print 
-'[]' '[0]' 'bear' json_set_s =$json2 $json2 p
-$json2 '[1]' 2      json_set_i =$json2 $json2 p
-$json2 '[2]' 7.8    json_set_d =$json2 $json2 p $json2 json_array_len
-3 != if 'array length error' then
+	\ json input addr, string key, value, typed function, suck up pointer, output and print 
+	'[]' '[0]' 'bear' json_set_s =$json2 $json2 p
+	$json2 '[1]' 2      json_set_i =$json2 $json2 p
+	$json2 '[2]' 7.8    json_set_d =$json2 $json2 p $json2 json_array_len
+	3 != if 'array length error' then
 
-$json1 '.info' $json2 json_set_j =$json1 $json1 p $json1 '.info[0]' json_extract p.
-( '{\'type\':\'bear\',\'numFeet\':2,\'weight\':7.8,\'info\':[\'bear\',2,7.8]}'
-63 memcmp 0 != if 'ERROR JSON not expected' then )
-
-
-'special' =$jsonObj.type.s $jsonObj p
-'green' =$jsonObj.color.s $jsonObj p
-'Ham sandwich' =$jsonObj.lunch.s $jsonObj p
-5 =$jsonObj.num.i $jsonObj p
-53.5 =$jsonObj.numpy.d $jsonObj p
-$json2 =$jsonObj.animal.j $jsonObj p
-67 =$jsonObj.animal[3].i $jsonObj p \ add to array value of key animal
-$jsonObj.animal[3] . drop
-$jsonObj.animal p
-$jsonObj p
-
-5 4 3 2 1 =$jsonAr[#].i 
-=$jsonAr[#].i 
-=$jsonAr[#].i 
-=$jsonAr[#].i =$jsonAr[#].i 'done' =$jsonAr[#].s $jsonAr p
-'[1,2,3,4,5]' . jeach jdone . clear
-'[1.0,2.0,3.0,4.0,5.0]' jeach jdone f. clear 
-'[[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5]]' jeach jeach jdone jdone . clear
-'{"bob":"john","bob1":"john","bob2":"john","bob4":"john"}'  jeach jdone p p p p
+	$json1 '.info' $json2 json_set_j =$json1 $json1 p $json1 '.info[0]' json_extract p.
+	( '{\'type\':\'bear\',\'numFeet\':2,\'weight\':7.8,\'info\':[\'bear\',2,7.8]}'
+	63 memcmp 0 != if 'ERROR JSON not expected' then )
 
 
-\'1' =$jsonAr2[#].s $jsonAr2 p
-'a' 'v' 'd' 'f' 'd' dep . =$jsonAr2[?].s $jsonAr2 p
+	'special' =$jsonObj.type.s $jsonObj p
+	'green' =$jsonObj.color.s $jsonObj p
+	'Ham sandwich' =$jsonObj.lunch.s $jsonObj p
+	5 =$jsonObj.num.i $jsonObj p
+	53.5 =$jsonObj.numpy.d $jsonObj p
+	$json2 =$jsonObj.animal.j $jsonObj p
+	67 =$jsonObj.animal[3].i $jsonObj p \ add to array value of key animal
+	$jsonObj.animal[3] . drop
+	$jsonObj.animal p
+	$jsonObj p
 
-1 2 3 4 5 dep . =$jsonAr3[?].i $jsonAr3 p $jsonAr3 jeach jdone . clear
- 
-0 =$var.key.i $var p . 'test' p $var[aa] . p
+	5 4 3 2 1 =$jsonAr[#].i 
+	=$jsonAr[#].i 
+	=$jsonAr[#].i 
+	=$jsonAr[#].i =$jsonAr[#].i 'done' =$jsonAr[#].s $jsonAr p
+	'[1,2,3,4,5]' . jeach jdone . clear
+	'[1.0,2.0,3.0,4.0,5.0]' jeach jdone f. clear 
+	'[[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5]]' jeach jeach jdone jdone . clear
+	'{"bob":"john","bob1":"john","bob2":"john","bob4":"john"}'  jeach jdone p p p p
 
-\'fith_src/script.fith' load
 
-5 4 3 2 1 dep . =$jsonAr4[?].i $jsonAr4 dup p jsort p
-'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
-5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p
+	\'1' =$jsonAr2[#].s $jsonAr2 p
+	'a' 'v' 'd' 'f' 'd' dep . =$jsonAr2[?].s $jsonAr2 p
+
+	1 2 3 4 5 dep . =$jsonAr3[?].i $jsonAr3 p $jsonAr3 jeach jdone . clear
+	 
+	0 =$var.key.i $var p . 'test' p $var[aa] . p
+
+	\'fith_src/script.fith' load
+
+	5 4 3 2 1 dep . =$jsonAr4[?].i $jsonAr4 dup p jsort p
+	'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
+	5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p
+
+;
+
 
 indexInc: $index dup 1 + =$index ;
 
-0 =$index
-5 =$matrix
+0   =$index
+5   =$matrix
 100 =$sizeOfMatrix
 
 $sizeOfMatrix $sizeOfMatrix * . array =$matrix
 
+\ set array [5] to 10
 10 5 =$matrix[]
 
+\ what is at array[5]? put on stack
 5 $matrix[] . drop
 .
-GC
+\GC
 0
 begin
 	dup =$cart1[#].i
