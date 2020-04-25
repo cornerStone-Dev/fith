@@ -27,6 +27,17 @@ factor_size[]=
 63,127,255,511,1023,2047,4095
 };
 
+typedef struct heap_data_s {
+	u8 *h;
+	u8 *cache;
+	u64 i;
+	u64 b;
+	u64 t;
+	u64 generation_size;
+	u32 generation_count;
+} Heap;
+static Heap heap_data;
+
 typedef struct var_data_s {
 	s64 *v;
 	u32 i;
@@ -43,22 +54,42 @@ static Ptrs ptrs;
 
 // returns a pointer to one
 static void *
-logged_malloc(size_t bytes, u8 factor)
+heap_malloc(size_t bytes, u8 *ptr)
 {
-	u8 *f, *tmp;
-	f = malloc(bytes+1);
+	void *p;
+	u64 next_index, cache_offset;
+	
+	if (ptr == heap_data.cache)
+	{
+		cache_offset = (u64)(heap_data.cache - heap_data.h);
+		next_index = cache_offset+bytes;
+		if ((next_index)<=heap_data.t)
+		{
+			heap_data.i = next_index;
+			return ptr;
+		}
+	}
+	
+	next_index = heap_data.i+bytes;
+	while (next_index>heap_data.t) // garbage collection time
+	{
+		garbage_collect();
+		next_index = heap_data.i+bytes;
+	}
+	p = &heap_data.h[heap_data.i];
+	heap_data.cache = p;
+	heap_data.i = next_index;
+	return p;
+}
+
+// returns a pointer to one
+static void *
+logged_malloc(size_t bytes, u8 factor, u8 *ptr)
+{
+	u8 *f;
+	f = heap_malloc(bytes+1, ptr);
 	*f=factor;
 	f++;
-	ptrs.p[ptrs.i] = f;
-	ptrs.i++;
-	if(ptrs.i>ptrs.hw){
-		ptrs.hw+=512;
-		tmp = realloc(ptrs.p, (ptrs.hw/512+1)*4096);
-		if (tmp==0){
-			printf("OUT OF MEMORY!!!"); exit(1);
-		}
-		ptrs.p=(u8 **)tmp;
-	}
 	return (void *)f;
 }
 
@@ -70,9 +101,9 @@ logged_malloc_block(size_t bytes)
 	if (bytes < 4096 )
 	{
 		factor = bytes / 64;
-		return logged_malloc( size_of_chunk[factor], factor_map[factor] );
+		return logged_malloc( size_of_chunk[factor], factor_map[factor], 0 );
 	} else {
-		return logged_malloc( (bytes/2048+1)*2048, 7 );
+		return logged_malloc( (bytes/2048+1)*2048, 7, 0 );
 	}
 }
 
@@ -101,7 +132,7 @@ allocation_need_check(u8 *input, u32 input_factor, u32 result_len)
 		{ // result will fit in current buffer
 			return (void *)input;
 		} else {
-			return logged_malloc( (result_len/2048+1)*2048, 7 );
+			return logged_malloc( (result_len/2048+1)*2048, 7 , input);
 		}
 	}
 }
@@ -421,6 +452,7 @@ fith_json_set_i_internal(u8 *json, u8 *key, s64 val)
 	u32 res_size;
 	u8 buff[256];
 	
+	//printf("fith_json_set_i_internal11\n");
 	buff[0]='$';
 	buff[1]=0;
 	strcat((char *)buff,(const char *)key);
@@ -431,10 +463,14 @@ fith_json_set_i_internal(u8 *json, u8 *key, s64 val)
 	SQL3_COL_json_set_i();
 	// res now holds string
 	res_size = SQL3_SIZE_json_set_i(0);
+	//printf("fith_json_ %ld\n", json);
 	ret = allocation_need_check(json, *(json-1), res_size+1);
+	//printf("fith_json_se %ld, %d, %ld\n", ret, res_size+1, (s64)(ret-heap_data.h));
 	memcpy(ret, res, res_size);
+	//printf("fith_json_set_i_internal3\n");
 	ret[res_size]=0; // null terminate
 	SQL3_RESET_json_set_i();
+	//printf("fith_json_set_i_internal4\n");
 	return ret;
 }
 
@@ -544,7 +580,7 @@ save_variable(u8 *start, u64 len, s64 val)
 			var_data.hw+=512;
 			p = realloc(var_data.v, (var_data.hw/512+1)*4096);
 			if (p==0){
-				printf("OUT OF MEMORY!!!"); exit(1);
+				printf("OUT OF MEMORY!!!\n"); exit(1);
 			}
 			var_data.v=(s64 *)p;
 		}
@@ -602,6 +638,169 @@ fith_binary_search(s64 *array, s64 size, s64 target)
 			max = search_index - 1;
 		}
 	}
+}
+
+
+typedef struct tuple_s {
+	s64 x;
+	s64 y;
+} tuple;
+
+static __inline s64 CMP_TUPLE(tuple a,tuple b)
+{
+	return ((a.x) - (b.x));
+}
+
+/*  Used in mergesort. */
+static __inline void INSERTION_SORT_tuple(tuple *dsti, const size_t size) 
+{
+	size_t i=1;
+	tuple *dst=dsti;
+	
+	for (; i < size; i++) 
+	{
+		size_t j;
+		tuple x;
+
+		/* If this entry is already correct, just move along */
+		if (CMP_TUPLE(dst[i - 1], dst[i]) <= 0)
+		{
+			continue;
+		}
+
+		/* Else we need to find the right place while shifting everything over */
+		x = dst[i];
+		j = i;
+
+		for (;;) 
+		{
+			dst[j] = dst[j-1];
+			j--;
+			if ( ((j == 0)||(CMP_TUPLE(dst[j-1], x) <= 0)) )
+			{
+				break;
+			}
+		}
+		dst[j] = x;
+	}
+}
+
+/* Standard merge sort */
+static void
+MERGE_SORT_RECURSIVE_tuple(tuple *newdsti, tuple *dsti, const size_t size) {
+	tuple *newdst=newdsti;
+	tuple *dst=dsti;
+	const size_t middle = size / 2;
+	size_t out = 0;
+	size_t i = 0;
+	size_t j = middle;
+
+	if (size <= 16) {
+		INSERTION_SORT_tuple(dst, size);
+		return;
+	}
+
+	MERGE_SORT_RECURSIVE_tuple(newdst, dst, middle);
+	MERGE_SORT_RECURSIVE_tuple(newdst, &dst[middle], size - middle);
+
+	if (CMP_TUPLE(dst[middle - 1], dst[middle]) <= 0)
+		{ return; }
+
+	/* copy off left side */
+	for (; out < middle; out++) {
+		newdst[out]=dst[out];
+	}
+	out=0;
+
+	for (; i < middle && j < size; ++out) {
+		if (CMP_TUPLE(newdst[i], dst[j]) <= 0) {
+			dst[out] = newdst[i++];
+		} else {
+			dst[out] = dst[j++];
+		}
+	}
+
+	for (; i < middle; ++out) {
+		dst[out] = newdst[i++];
+	}
+}
+
+/*  Used in mergesort. */
+static int REVERSE_SORT_tuple(tuple *dsti, const size_t size) 
+{
+	tuple *dst=dsti;
+	tuple x;
+	size_t i;
+	size_t j;
+	size_t n;
+	size_t p;
+	size_t num_reverse;
+	size_t off;
+
+	/* filter for reverse runs */
+	for (i = 1; i < size; i++)
+	{
+		/* If this entry is already correct, just move along */
+		if (CMP_TUPLE(dst[i - 1], dst[i]) <= 0) 
+		{
+			if(i>33)
+			{
+				return 0;
+			}
+			continue;
+		} else 
+		{
+			off=i-1;
+			num_reverse=0;
+			do{
+				num_reverse++;
+				i++;
+			} while((i < size)&&(CMP_TUPLE(dst[i - 1], dst[i]) > 0));
+			n=num_reverse;
+			num_reverse++;
+
+			j=num_reverse/2; /* num items to cpy */
+			for (p = 0; p < j; p++) /* top part */
+			{
+				x=dst[p+off];
+				dst[p+off]=dst[n+off];
+				dst[n+off]=x;
+				n--;
+			}
+			if(num_reverse==size)
+			{
+				return 1;
+			}
+			return 0;
+		}
+	}
+	return 0;
+}
+
+/* Standard merge sort */
+static void
+MERGE_SORT_tuple(tuple *dst, const size_t size) {
+	tuple *newdst;
+
+	/* don't bother sorting an array of size <= 1 */
+	if (size <= 1) {
+		return;
+	}
+
+	if (size <= 32) {
+		INSERTION_SORT_tuple(dst, size);
+		return;
+	}
+
+	if(REVERSE_SORT_tuple(dst, size))
+	{
+		return;
+	}
+
+	newdst = malloc(size/2);
+
+	MERGE_SORT_RECURSIVE_tuple(newdst, dst, size);
+	free(newdst);
 }
 
 
@@ -762,39 +961,95 @@ MERGE_SORT_s64(s64 *dst, const size_t size) {
 	free(newdst);
 }
 
+#define HEAP_PTR(a) (u8 *)((a)+heap_data.h)
 static void
 garbage_collect(void)
 {
-	s64 result;
-	StringTos64Node n;
-	TravState_i s={0};
-	s32 z=0,i=0;
-	s64 variables[2048];
+	u8  *pBottom, *pTmp;
+	u64 bottom, top, tmp, bucket;
+	u32 x=0, size;
+	u8 input_factor, copy_collect=0;
+	tuple variables[2048];
 	
-	// walk through all the variables recording their values
-	while ( (n = StringTos64Tree_traverse(vars, &s)) ){
-		variables[i]= n->val;
-		i++;
-	}
-	//printf("gathered %d vars\n",i);
-	// sort vars
-	MERGE_SORT_s64(variables, i);
-	// for each logged pointer search vars for a match
-	// if non is found free the pointer
-	// if a match is found write it back over the array to save it
-	for(u32 y=0;y<ptrs.i;y++)
+	top = (u64)(heap_data.i + heap_data.h);
+	// increment and check generation count
+	heap_data.generation_count++;
+	
+	// check if heap needs upgraded
+	bucket = heap_data.generation_size*8;
+	// check if current partition is undersized
+	if (bucket > (heap_data.t+1))
 	{
-		result = fith_binary_search(variables, i, (s64)ptrs.p[y]);
-		if (result < 0){ // not found
-			free((u8 *)((ptrs.p[y])-1));
-		} else {
-			ptrs.p[z]=ptrs.p[y];
-			z++;
+		copy_collect = 1;
+		heap_data.generation_count = 0;
+	}
+	
+	if (heap_data.generation_count%8)
+	{
+		bottom = (u64)(heap_data.b + heap_data.h);
+	} else {
+		bottom = (u64)heap_data.h;
+		heap_data.b = 0;
+	}
+	// copy filtered variables into array
+	for(u32 y=0;y<var_data.i;y++)
+	{
+		tmp = var_data.v[y];
+		if ( (tmp>=bottom)&&(tmp<top) )
+		{
+			variables[x].x = (s64)tmp-(u64)heap_data.h;
+			variables[x].y = y;
+			x++;
 		}
 	}
-	//printf("freed %d pointers\n",(ptrs.i-z));
-	//printf("ptrs.i is now %d\n",z);
-	ptrs.i = z;
+	
+	// sort vars
+	MERGE_SORT_tuple(variables, x);
+	
+	if (copy_collect)
+	{
+		bucket = ((bucket/(128*1024))+1) * (128*1024);
+		pTmp = realloc(heap_data.h, bucket);
+		if(pTmp==0)
+		{
+			printf("CANNOT EXPAND HEAP!!!\n");
+			
+		} else {
+			heap_data.h=pTmp;
+			heap_data.t = bucket-1;
+			//printf("LARGEST ADDR %ld, top %ld\n", (s64)heap_data.h+heap_data.t, heap_data.t);
+		}
+	}
+
+	// starting at bottom, copy down all valid pointers
+	pBottom = (u8 *)(heap_data.b + heap_data.h);
+	
+	for(u32 y=0;y<x;y++)
+	{
+		// get size
+		input_factor = *(HEAP_PTR(variables[y].x)-1);
+		if (input_factor<7) // smaller allocation
+		{
+			size = factor_size[input_factor]+1;
+		} else {
+			size = strlen((const char *) HEAP_PTR(variables[y].x));
+			size = (size/2048+1)*2048+1;
+		}
+		
+		// copy into bottom
+		memcpy(pBottom, HEAP_PTR(variables[y].x-1), size);
+		// overwrite pointer to new location
+		var_data.v[variables[y].y] = (s64)(pBottom+1);
+		// move pointer forward
+		pBottom+=size;
+	}
+	// record size of young generation survivors
+	heap_data.generation_size = (pBottom-(u8 *)(heap_data.b + heap_data.h));
+	// move bottom up to new bottom
+	heap_data.b += heap_data.generation_size;
+	// set index to new bottom
+	heap_data.i = heap_data.b;
+
 }
 
 

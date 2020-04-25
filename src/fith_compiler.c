@@ -90,13 +90,15 @@ static sqlite3 *fdb;
 
 /* function prototypes */
 static void *
-logged_malloc(size_t bytes, u8 factor);
+logged_malloc(size_t bytes, u8 factor, u8 *ptr);
 static void *
 logged_malloc_block(size_t bytes);
 static void
 save_function_addr(u8 *start, u64 len, u8 *addr);
 static void
 save_variable(u8 *start, u64 len, s64 val);
+static void
+garbage_collect(void);
 
 
 //~ static s32
@@ -167,7 +169,8 @@ load_file(u8 *file_name, u8 as_function)
 	fileSize = ftell(pFile);
 	rewind(pFile);
 	// allocate memory to contain the whole file:
-	buffer = logged_malloc_block(fileSize+2);
+	//buffer = logged_malloc_block(fileSize+2);
+	buffer = malloc(fileSize+2);
 	if (buffer == NULL) {fputs ("Memory error\n",stderr); exit (2);}
 	// copy the file into the buffer:
 	result = fread (buffer,1,fileSize,pFile);
@@ -180,7 +183,8 @@ load_file(u8 *file_name, u8 as_function)
 		buffer[fileSize]=3;
 	}
 	fclose (pFile);
-	save_variable(file_name, strlen((const char *)file_name), (s64)buffer);
+	// TODO update to maybe not use garbage collector
+	//save_variable(file_name, strlen((const char *)file_name), (s64)buffer);
 	return (u8*)buffer;
 }
 
@@ -484,7 +488,11 @@ int main(int argc, char **argv)
 	ptrs.hw=511;
 	
 	var_data.v = malloc(4096);
-	ptrs.hw=511;
+	var_data.hw=511;
+	
+	heap_data.h = malloc(128*1024*1);
+	heap_data.t=(128*1024*1)-1;
+	heap_data.cache=(u8*)5; // set to garbage
 	
 	sqlite3_initialize();
 	sqlite3_open(":memory:", &fdb);

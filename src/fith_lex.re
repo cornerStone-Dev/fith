@@ -336,7 +336,7 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
-		"load" {
+	"load" {
 		DECREMENT_STACK
 		(c->stk+1)->s = load_file(c->stk->s,1);
 		// save off return in command stack
@@ -749,7 +749,7 @@ loop: // label for looping within the lexxer
 	
 	"array" {
 		// allocate array with padding for 7 byte header (memory log =1 byte)
-		(c->stk-1)->s = logged_malloc_block(((c->stk-1)->i*8)+7);
+		(c->stk-1)->s = malloc(((c->stk-1)->i*8)+7);
 		// tag header with invalid utf-8
 		*(c->stk-1)->s = 0xFF;
 		goto loop;
@@ -799,7 +799,7 @@ loop: // label for looping within the lexxer
 		// save off value
 		c->stk->i=(c->stk-1)->i;
 		// get string
-		(c->stk-1)->s = logged_malloc(63,0);
+		(c->stk-1)->s = logged_malloc(63,0, 0);
 		sprintf((char *)(c->stk-1)->s, "%ld", c->stk->i);
 		goto loop;
 	}
@@ -813,7 +813,7 @@ loop: // label for looping within the lexxer
 		// save off value
 		c->stk->d=(c->stk-1)->d;
 		// get string
-		(c->stk-1)->s = logged_malloc(63,0);
+		(c->stk-1)->s = logged_malloc(63,0, 0);
 		sprintf((char *)(c->stk-1)->s, "%f", c->stk->d);
 		goto loop;
 	}
@@ -1262,13 +1262,14 @@ loop: // label for looping within the lexxer
 			c->stk-=(c->stk+5)->i;
 			goto loop;
 		} else {
-			
+			//save_variable(start, (c->stk+3)->i, 0);
 			c->stk->s = fith_json_set_i_internal((c->stk+1)->s,   // json
 											(c->stk+4)->s, // key
 											c->stk->i);    // value
 		}
 		*(YYCURSOR-2) = (c->stk+2)->i;
 		// will try to insert unique name, if fails will update value only
+		//printf("%s\n", c->stk->s);
 		save_variable(start, (c->stk+3)->i, c->stk->i);
 		goto loop;
 	}

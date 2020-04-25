@@ -174,7 +174,7 @@ indexInc: $index dup 1 + =$index ;
 
 0   =$index
 5   =$matrix
-100 =$sizeOfMatrix
+200 =$sizeOfMatrix
 
 $sizeOfMatrix $sizeOfMatrix * . array =$matrix
 
@@ -194,9 +194,9 @@ until
 drop
 $cart1 . 
 jeach  \first val on stack .
-	$cart1
+	$cart1 
 	jeach 
-		 over * indexInc =$matrix[]
+		 over * =$cart2[#].i \indexInc =$matrix[]
 	jdone
 	drop \GC
 jdone
