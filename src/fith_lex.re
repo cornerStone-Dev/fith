@@ -87,6 +87,98 @@ static int lex_options(/*const*/ u8 * YYCURSOR) // YYCURSOR is defined as a func
 	*/                               // end of re2c block
 }
 
+static int lex_stringToFSON(u8 *YYCURSOR, u8 *out)
+{                                    //
+	//u8 * YYCURSOR;
+	u8 * YYMARKER;
+	u8 *start;
+	//u8 *startMangledString;
+	//YYCURSOR = *YYCURSOR_p;
+	//startMangledString = YYCURSOR;
+	
+
+loop: // label for looping within the lexxer
+	start = YYCURSOR;
+
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { goto loop; }//   default rule with its semantic action
+	[\x00] { return 1; }             // EOF rule with null sentinal
+	
+	[ \n\t\r] { // JSON Whitespace
+		goto loop;
+	}
+
+	"{" { // JSON Whitespace
+		goto loop;
+	}
+
+	"}" { // JSON Whitespace
+		goto loop;
+	}
+
+	"[" { // JSON Whitespace
+		goto loop;
+	}
+
+	"]" { // JSON Whitespace
+		goto loop;
+	}
+	
+	"," { // JSON Whitespace
+		goto loop;
+	}
+	
+	":" { // JSON Whitespace
+		goto loop;
+	}
+
+	"true" { // JSON Whitespace
+		goto loop;
+	}
+
+	"false" { // JSON Whitespace
+		goto loop;
+	}
+
+	"null" { // JSON Whitespace
+		goto loop;
+	}
+
+	"-"?( "0"|([1-9][0-9]*) ) ("." [0-9]+)? (("e"|"E") [+-] [0-9]+)?  { // JSON number
+		goto loop;
+	}
+
+	 ["] ([^"] | ([\\] ["]))* ["] { // JSON string
+		goto loop;
+	}
+
+	//~ string_lit_chain {
+		//~ *(YYCURSOR-1) = 0;
+		//~ startMangledString = (u8*)stpcpy((char *)startMangledString,
+										//~ (const char *)start);
+		//~ *YYCURSOR_p = startMangledString;
+		//~ goto loop;
+	//~ }
+	
+	//~ string_lit_end {
+		//~ if(startMangledString==start)
+		//~ {
+			//~ *(YYCURSOR-1) = 0;
+			//~ return 0;
+		//~ }
+		//~ *(YYCURSOR-1) = 0;
+		//~ startMangledString = (u8*)stpcpy((char *)startMangledString,
+										//~ (const char *)start);
+		//~ *YYCURSOR_p = startMangledString;
+		//~ return 1;
+	//~ }
+
+	*/                               // end of re2c block
+}
+
 static int lex_string_lit_chain(u8 ** YYCURSOR_p)
 {                                    //
 	u8 * YYCURSOR;

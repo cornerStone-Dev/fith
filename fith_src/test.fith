@@ -174,7 +174,7 @@ indexInc: $index dup 1 + =$index ;
 
 0   =$index
 5   =$matrix
-200 =$sizeOfMatrix
+100 =$sizeOfMatrix
 
 $sizeOfMatrix $sizeOfMatrix * . array =$matrix
 

@@ -59,15 +59,17 @@ heap_malloc(size_t bytes, u8 *ptr)
 	void *p;
 	u64 next_index, cache_offset;
 	
-	if (ptr == heap_data.cache)
+	if ((ptr-1) == heap_data.cache)
 	{
 		cache_offset = (u64)(heap_data.cache - heap_data.h);
 		next_index = cache_offset+bytes;
 		if ((next_index)<=heap_data.t)
 		{
+			//printf("expanded allocation!\n");
 			heap_data.i = next_index;
 			return ptr;
 		}
+		
 	}
 	
 	next_index = heap_data.i+bytes;
@@ -1015,6 +1017,9 @@ garbage_collect(void)
 			printf("CANNOT EXPAND HEAP!!!\n");
 			
 		} else {
+			//~ if (heap_data.h==pTmp){
+				//~ printf("REALLOC WORKED!!!\n");
+			//~ }
 			heap_data.h=pTmp;
 			heap_data.t = bucket-1;
 			//printf("LARGEST ADDR %ld, top %ld\n", (s64)heap_data.h+heap_data.t, heap_data.t);
