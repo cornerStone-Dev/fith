@@ -87,11 +87,12 @@ static int lex_options(/*const*/ u8 * YYCURSOR) // YYCURSOR is defined as a func
 	*/                               // end of re2c block
 }
 
-static int lex_stringToFSON(u8 *YYCURSOR, u8 *out)
+static int lex_stringToFSON(const u8 *YYCURSORx, u8 *outx)
 {                                    //
-	//u8 * YYCURSOR;
-	u8 * YYMARKER;
-	u8 *start;
+	const u8 *YYCURSOR = YYCURSORx;
+	u8 *out = outx;
+	const u8 *YYMARKER;
+	const u8 *start;
 	//u8 *startMangledString;
 	//YYCURSOR = *YYCURSOR_p;
 	//startMangledString = YYCURSOR;
@@ -104,26 +105,37 @@ loop: // label for looping within the lexxer
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
-	* { goto loop; }//   default rule with its semantic action
-	[\x00] { return 1; }             // EOF rule with null sentinal
+	* { goto loop; }//   default rule with its semantic action skip garbage
+	[\x00] { 
+		// write in metadata in begining
+		return 1; 
+	}             // EOF rule with null sentinal
 	
 	[ \n\t\r] { // JSON Whitespace
 		goto loop;
 	}
 
-	"{" { // JSON Whitespace
+	"{" { // JSON Object start
+		*out = ION_OBJ_START;
+		out++;
 		goto loop;
 	}
 
-	"}" { // JSON Whitespace
+	"}" { //  JSON Object end
+		*out = ION_OBJ_END;
+		out++;
 		goto loop;
 	}
 
 	"[" { // JSON Whitespace
+		*out = ION_ARR_START;
+		out++;
 		goto loop;
 	}
 
 	"]" { // JSON Whitespace
+		*out = ION_ARR_END;
+		out++;
 		goto loop;
 	}
 	
@@ -136,45 +148,211 @@ loop: // label for looping within the lexxer
 	}
 
 	"true" { // JSON Whitespace
+		*out = ION_TRUE;
+		out++;
 		goto loop;
 	}
 
 	"false" { // JSON Whitespace
+		*out = ION_FALSE;
+		out++;
 		goto loop;
 	}
 
 	"null" { // JSON Whitespace
+		*out = ION_NULL;
+		out++;
 		goto loop;
 	}
 
-	"-"?( "0"|([1-9][0-9]*) ) ("." [0-9]+)? (("e"|"E") [+-] [0-9]+)?  { // JSON number
+	"-"?( "0"|([1-9][0-9]*) )  { // JSON integer
+		u64 ionInt;
+		s32 lz;
+		ionInt = (u64)atol( (const char *)start );
+		lz = __builtin_clzl(ionInt)/8;
+		switch (lz){
+			case 0:
+			if (ionInt == -1)
+			{
+				// -1
+				*out = ION_MINUS1;
+				out++;
+			} else {
+				// 8 bytes of int
+				*out = ION_INT8;
+				out++;
+				*out = ionInt&0xFF00000000000000;
+				out++;
+				*out = ionInt&0x00FF000000000000;
+				out++;
+				*out = ionInt&0x0000FF0000000000;
+				out++;
+				*out = ionInt&0x000000FF00000000;
+				out++;
+				*out = ionInt&0x00000000FF000000;
+				out++;
+				*out = ionInt&0x0000000000FF0000;
+				out++;
+				*out = ionInt&0x000000000000FF00;
+				out++;
+				*out = ionInt&0xFF;
+				out++;
+			}
+			break;
+			case 1:
+			// 7 bytes of int
+			*out = ION_INT7;
+			out++;
+			*out = ionInt&0x00FF000000000000;
+			out++;
+			*out = ionInt&0x0000FF0000000000;
+			out++;
+			*out = ionInt&0x000000FF00000000;
+			out++;
+			*out = ionInt&0x00000000FF000000;
+			out++;
+			*out = ionInt&0x0000000000FF0000;
+			out++;
+			*out = ionInt&0x000000000000FF00;
+			out++;
+			*out = ionInt&0xFF;
+			out++;
+			break;
+			case 2:
+			// 6 bytes of int
+			*out = ION_INT6;
+			out++;
+			*out = ionInt&0x0000FF0000000000;
+			out++;
+			*out = ionInt&0x000000FF00000000;
+			out++;
+			*out = ionInt&0x00000000FF000000;
+			out++;
+			*out = ionInt&0x0000000000FF0000;
+			out++;
+			*out = ionInt&0x000000000000FF00;
+			out++;
+			*out = ionInt&0xFF;
+			out++;
+			break;
+			case 3:
+			// 5 bytes of int
+			*out = ION_INT5;
+			out++;
+			*out = ionInt&0x000000FF00000000;
+			out++;
+			*out = ionInt&0x00000000FF000000;
+			out++;
+			*out = ionInt&0x0000000000FF0000;
+			out++;
+			*out = ionInt&0x000000000000FF00;
+			out++;
+			*out = ionInt&0xFF;
+			out++;
+			break;
+			case 4:
+			// 4 bytes of int
+			*out = ION_INT4;
+			out++;
+			*out = ionInt&0x00000000FF000000;
+			out++;
+			*out = ionInt&0x0000000000FF0000;
+			out++;
+			*out = ionInt&0x000000000000FF00;
+			out++;
+			*out = ionInt&0xFF;
+			out++;
+			break;
+			case 5:
+			// 3 bytes of int
+			*out = ION_INT3;
+			out++;
+			*out = ionInt&0x0000000000FF0000;
+			out++;
+			*out = ionInt&0x000000000000FF00;
+			out++;
+			*out = ionInt&0xFF;
+			out++;
+			break;
+			case 6:
+			// 2 bytes of int
+			*out = ION_INT2;
+			out++;
+			*out = ionInt&0x000000000000FF00;
+			out++;
+			*out = ionInt&0xFF;
+			out++;
+			break;
+			case 7:
+			if (ionInt == 1)
+			{
+				// 1
+				*out = ION_0;
+				out++;
+			} else {
+				// byte 1 of int
+				*out = ION_INT1;
+				out++;
+				*out = ionInt&0xFF;
+				out++;
+			}
+			break;
+			case 8:
+			// 0
+			*out = ION_0;
+			out++;
+			break;
+			default:
+			break;
+		}
+		goto loop;
+	}
+
+	"-"?( "0"|([1-9][0-9]*) ) ( ("." [0-9]+) |  (("e"|"E") [+-] [0-9]+) | ( ("." [0-9]+) (("e"|"E") [+-] [0-9]+) ) )  { // JSON floating
+		Data ionNumber;
+		u64 ionInt;
+		
+		ionNumber.d = atof( (const char *)start );
+		ionInt = (u64)ionNumber.i;
+		*out = ION_FLOAT;
+		out++;
+		*out = ionInt&0xFF00000000000000;
+		out++;
+		*out = ionInt&0x00FF000000000000;
+		out++;
+		*out = ionInt&0x0000FF0000000000;
+		out++;
+		*out = ionInt&0x000000FF00000000;
+		out++;
+		*out = ionInt&0x00000000FF000000;
+		out++;
+		*out = ionInt&0x0000000000FF0000;
+		out++;
+		*out = ionInt&0x000000000000FF00;
+		out++;
+		*out = ionInt&0xFF;
+		out++;
 		goto loop;
 	}
 
 	 ["] ([^"] | ([\\] ["]))* ["] { // JSON string
+		u64 length;
+		length = YYCURSOR-start-2;
+		start++;
+		if (length < 45)
+		{
+			*out = ION_STRING01+(length-1);
+		} else {
+			*out = ION_STRING_N;
+		}
+		out++;
+		for(u32 i = 0; i<length; i++)
+		{
+			*out = *start;
+			out++;
+		}
 		goto loop;
 	}
-
-	//~ string_lit_chain {
-		//~ *(YYCURSOR-1) = 0;
-		//~ startMangledString = (u8*)stpcpy((char *)startMangledString,
-										//~ (const char *)start);
-		//~ *YYCURSOR_p = startMangledString;
-		//~ goto loop;
-	//~ }
-	
-	//~ string_lit_end {
-		//~ if(startMangledString==start)
-		//~ {
-			//~ *(YYCURSOR-1) = 0;
-			//~ return 0;
-		//~ }
-		//~ *(YYCURSOR-1) = 0;
-		//~ startMangledString = (u8*)stpcpy((char *)startMangledString,
-										//~ (const char *)start);
-		//~ *YYCURSOR_p = startMangledString;
-		//~ return 1;
-	//~ }
 
 	*/                               // end of re2c block
 }

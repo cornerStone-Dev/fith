@@ -15,6 +15,7 @@
 #include <termios.h>
 
 #include "std_types.h"
+#include "fith_ION.h"
 
 
 #include "../sqlite3/sqlite3.h"
