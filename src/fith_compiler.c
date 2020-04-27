@@ -426,6 +426,7 @@ if (c->stk<c->stk_end) \
 #include "fith_avl.c"
 #include "fith_data.c"
 #include "../tool_output/fith_lex.c"
+#include "../tool_output/fith_ION_lex.c"
 //#include "../tool_output/fl_c_gram.c"
 //~ #include "../tool_output/fcompile_gram.c"
 //~ #include "../tool_output/ignore_gram.c"

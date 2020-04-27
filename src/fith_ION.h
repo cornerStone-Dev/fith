@@ -6,7 +6,7 @@
 
 #define ION_0 0x80
 #define ION_1 0x81
-#define ION_MINUS1 0x82
+#define ION_NEG 0x82
 #define ION_TRUE 0x83
 #define ION_FALSE  0x84
 #define ION_NULL  0x85
