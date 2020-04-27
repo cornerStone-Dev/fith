@@ -235,7 +235,7 @@ static const u8 * lex_searchObj(const u8 *inputx, u8 *pathx)
 				break;
 			}
 		}
-		if(i<key_len)
+		if(i==key_len)
 		{
 			return &YYCURSOR[i]; // success
 		}
