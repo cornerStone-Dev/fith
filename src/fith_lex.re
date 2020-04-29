@@ -356,19 +356,45 @@ loop: // label for looping within the lexxer
 	
 	"p" {
 		DECREMENT_STACK
-		printf("%s\n",(const char *)c->stk->s);
+		if(((*c->stk->s)&0xC0)==0x80)
+		{
+			lex_printFSON(c->stk->s);
+			
+		} else {
+			printf("%s\n",(const char *)c->stk->s);
+		}
 		//~ printf((const char *)c->stk->s);
 		//~ printf("\n");
 		goto loop;
 	}
+	
+	"praw" {
+		DECREMENT_STACK
+		for (u8 *a = c->stk->s; (*a); a++)
+		{
+			if (*a<0x80){
+				printf("%c",(*a));
+			} else {
+				printf("|%hhX|",(*a));
+			}
+		}
+		printf("\n");
+		//~ printf((const char *)c->stk->s);
+		//~ printf("\n");
+		u32 string_len = strlen((const char *)c->stk->s);
+		(c->stk+1)->s = malloc(string_len*3);
+		lex_FSONToString(c->stk->s, (c->stk+1)->s);
+		printf("%s\n",(const char *)(c->stk+1)->s);
+		goto loop;
+	}
 
-	"||" {
+	"or" { // "||"
 		DECREMENT_STACK
 		(c->stk-1)->i = (c->stk-1)->i||c->stk->i;
 		goto loop;
 	}
 
-	"&&" {
+	"and" { // "&&"
 		DECREMENT_STACK
 		(c->stk-1)->i = (c->stk-1)->i&&c->stk->i;
 		goto loop;
@@ -825,6 +851,14 @@ loop: // label for looping within the lexxer
 	
 	"s2f" {
 		(c->stk-1)->d = atof( (const char *)(c->stk-1)->s );
+		goto loop;
+	}
+	
+	"s2o" {
+		u32 string_len = strlen((const char *)(c->stk-1)->s);
+		c->stk->s = malloc(string_len*3);
+		lex_stringToFSON((c->stk-1)->s, c->stk->s);
+		(c->stk-1)->s = c->stk->s;
 		goto loop;
 	}
 

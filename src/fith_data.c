@@ -1005,6 +1005,8 @@ garbage_collect(void)
 		}
 	}
 	
+	// TODO record stack vars (maybe locals) by pointer
+	
 	// sort vars
 	MERGE_SORT_tuple(variables, x);
 	

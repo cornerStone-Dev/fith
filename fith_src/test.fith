@@ -174,7 +174,7 @@ indexInc: $index dup 1 + =$index ;
 
 0   =$index
 5   =$matrix
-100 =$sizeOfMatrix
+10 =$sizeOfMatrix
 
 $sizeOfMatrix $sizeOfMatrix * . array =$matrix
 
@@ -200,6 +200,17 @@ jeach  \first val on stack .
 	jdone
 	drop \GC
 jdone
+
+\'hello' praw
+55  =$jsonObj.age.i
+7.864 =$jsonObj.height.d
+'["yoyo","hello motto"]' =$jsonObj.favs.j
+'special' =$jsonObj.type.s $jsonObj p
+
+$jsonObj s2o p
+
+
+
 
 \=$cart2[#].i
 
