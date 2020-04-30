@@ -203,6 +203,7 @@ jdone
 
 \'hello' praw
 55  =$jsonObj.age.i
+1  =$jsonObj.dogs.i
 7.864 =$jsonObj.height.d
 '["yoyo","hello motto"]' =$jsonObj.favs.j
 'special' =$jsonObj.type.s $jsonObj p

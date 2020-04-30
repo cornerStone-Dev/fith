@@ -227,6 +227,7 @@ StringTos64Tree_insert(StringTos64Node *treep, u8 *target, u32 len, s64 val)
 	StringTos64Node tree = *treep;
 	StringTos64Node *path_top = treep;
 	s64 res;
+	u32 i=0;
 	u8 node_len;
 	while (tree && ((res=CMP(target, tree->key))!=0) ) {
 		s8 next_step = tree->taken = (res>0);
@@ -245,7 +246,7 @@ StringTos64Tree_insert(StringTos64Node *treep, u8 *target, u32 len, s64 val)
 	tree->longer = NEITHER;
 	tree->taken = NEITHER;
 	tree->len = node_len;
-	memcpy(tree->key, target, len);
+	do{tree->key[i]=target[i];i++;}while(i<len);
 	tree->key[len] = 0; // null terminate
 	*treep = tree;
 	StringTos64Tree_rebalance_insert(path_top, target);
