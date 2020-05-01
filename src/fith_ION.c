@@ -2,8 +2,20 @@
 /* PUBLIC DOMAIN */
 /* ION helper functions */
 
+static u32 ION_getLen(const u8 *input)
+{
+	u32 fson_length;
+
+	// get length of ION
+	fson_length= (((*input)&0x3F)<<24);
+	fson_length+=((*(input+1))<<16);
+	fson_length+=((*(input+2))<<8);
+	fson_length+= (*(input+3));
+	return fson_length;
+}
+
 static f64
-ION_toDouble(u8 *input)
+ION_toDouble(const u8 *input)
 {
 	Data ionNumber;
 	u64 ionInt;

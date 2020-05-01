@@ -361,10 +361,34 @@ loop: // label for looping within the lexxer
 			lex_printFSON(c->stk->s);
 			
 		} else {
-			printf("%s\n",(const char *)c->stk->s);
+			printf("%s",(const char *)c->stk->s);
 		}
 		//~ printf((const char *)c->stk->s);
-		//~ printf("\n");
+		printf("\n");
+		goto loop;
+	}
+	
+	"ion-get" {
+		// get function for ion objects
+		// arguments... ionObject 'path'
+		STACK_CHECK(-2)
+		DECREMENT_STACK
+		u8 *value = (u8 *)lex_findPath((c->stk-1)->s+4, c->stk->s, c);
+		*(c->stk-1) = lex_returnVal(value);
+		//c->stk--;
+		goto loop;
+	}
+	
+	"search" {
+		(c->stk+1)->s = "type";
+		(c->stk+2)->s = lex_searchObj((((c->stk-1)->s)+5), &((c->stk+1)->s));
+		(c->stk+3)->i = *(c->stk+2)->s - 0x92;
+		(c->stk+2)->s++;
+		for(u32 i=0; i<(c->stk+3)->i; i++)
+		{
+			fputc((c->stk+2)->s[i], stdout);
+		}
+		fputc('\n', stdout);
 		goto loop;
 	}
 	

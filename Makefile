@@ -2,7 +2,7 @@
 all: bin tool_output sqlite3 gen bin/fith fith_src fith_src/script.fith
 
 #tool_output/fith_gram.c 
-bin/fith: src/fith_compiler.c src/fith_data.c src/fith_avl.c tool_output/fith_lex.c tool_output/fith_ION_lex.c sqlite3/sqlite3.o SQLite3_Helper/bin/sqlite3Helper
+bin/fith: src/fith_compiler.c src/fith_data.c src/fith_avl.c src/fith_ION.c tool_output/fith_lex.c tool_output/fith_ION_lex.c sqlite3/sqlite3.o SQLite3_Helper/bin/sqlite3Helper
 	./SQLite3_Helper/bin/sqlite3Helper
 	gcc -O2 -march=native -s -o bin/fith src/fith_compiler.c sqlite3/sqlite3.o -Wall -ldl
 	size bin/fith

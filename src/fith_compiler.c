@@ -423,6 +423,11 @@ if (c->stk<c->stk_end) \
 } else \
 { printf("stack overflow!!!\n"); }
 
+#define STACK_CHECK(x) \
+if ( (((c->stk - c->stk_start)+(x))<0)){printf("stack underflow!!!\n");} \
+else if ((((c->stk - c->stk_start)+(x))>374)){printf("stack overflow!!!\n");}
+
+
 #include "fith_avl.c"
 #include "fith_data.c"
 #include "fith_ION.c"

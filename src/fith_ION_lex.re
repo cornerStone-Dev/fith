@@ -197,6 +197,123 @@ loop: // label for looping within the lexxer
 	*/                               // end of re2c block
 }
 
+static Data lex_returnVal(const u8 *YYCURSORx)
+{
+	const u8 *YYCURSOR = YYCURSORx;
+	const u8 *cursor;
+	u8 *buff;
+	u64 length;
+	s64 num;
+	Data retVal;
+	s32 neg=0;
+
+loop: // label for looping within the lexxer
+
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { 
+
+		printf("invalid ION inside lex_returnVal\n");
+		retVal.i=0;
+		return retVal;
+	}//   default rule with its semantic action skip garbage
+
+	[\x80] { // ION 0
+		retVal.i=0;
+		return retVal;
+	}
+
+	[\x81] { // ION 1
+		retVal.i=(1-neg);
+		return retVal;
+	}
+
+	[\x82] { // ION negative sign
+		neg=2;
+		goto loop;
+	}
+
+	[\x83] { // ION true
+		retVal.s = (u8 *)"true";
+		return retVal;
+	}
+
+	[\x84] { // ION false
+		retVal.s = (u8 *)"false";
+		return retVal;
+	}
+
+	[\x85] { // ION null
+		retVal.s = (u8 *)"null";
+		return retVal;
+	}
+
+	[\x86] { // ION Object
+		cursor = YYCURSOR-1;
+		lex_skipObj(&YYCURSOR);
+		length = YYCURSOR-cursor+4; // get length
+		length +=3;
+		length /=4;
+		buff = malloc(length);
+		buff[0] = ((length&0x00000000FF000000)>>24)|0x80;
+		buff[1] = (length&0x0000000000FF0000)>>16;
+		buff[2] = (length&0x000000000000FF00)>>8;
+		buff[3] = length&0xFF;
+		memcpy(&buff[4], cursor, (YYCURSOR-cursor+4));
+		retVal.s = buff;
+		return retVal;
+	}
+
+	[\x88] { // ION Array
+		cursor = YYCURSOR-1;
+		lex_skipArray(&YYCURSOR);
+		length = YYCURSOR-cursor+4; // get length
+		length +=3;
+		length /=4;
+		buff = malloc(length);
+		buff[0] = ((length&0x00000000FF000000)>>24)|0x80;
+		buff[1] = (length&0x0000000000FF0000)>>16;
+		buff[2] = (length&0x000000000000FF00)>>8;
+		buff[3] = length&0xFF;
+		memcpy(&buff[4], cursor, (YYCURSOR-cursor+4));
+		retVal.s = buff;
+		return retVal;
+	}
+
+	[\x8a] { // ION float
+		retVal.d = ION_toDouble(YYCURSOR);
+		return retVal;
+	}
+
+	[\x8b-\x92] { // ION Ints
+		num = ION_Int(YYCURSOR, ((*(YYCURSOR-1))-0x8A));
+		num*=(1-neg);
+		retVal.i=num;
+		return retVal;
+	}
+
+	[\x93-\xbe] { // ION Strings
+		length =((*(YYCURSOR-1))-0x92);
+		buff = malloc(length+1);
+		memcpy(buff, YYCURSOR, length);
+		buff[length]=0;
+		retVal.s = buff;
+		return retVal;
+	}
+
+	[\xbf] { // ION unknown string length
+		length=strlen((const char *)YYCURSOR)+1;
+		buff = malloc(length);
+		memcpy(buff, YYCURSOR, length);
+		retVal.s = buff;
+		return retVal;
+	}
+
+	*/                               // end of re2c block
+}
+
 // given an ION object, search for given path, ending with '.' '[' or '\0'
 static const u8 * lex_searchObj(const u8 *inputx, u8 **pathx)
 {                                    //
@@ -211,12 +328,11 @@ static const u8 * lex_searchObj(const u8 *inputx, u8 **pathx)
 		path_len++;
 	}
 	*pathx = &path[path_len]; // move path forward
-	
 	while(1){
-		key_len = (*YYCURSOR) - ION_STRING01+1;
+		key_len = (*YYCURSOR) - ION_STRING01 +1;
 		if (key_len>45)
 		{
-			printf("Error: lex_searchObj Keys must be strings\n");
+			printf("Error: %d,%d  lex_searchObj Keys must be strings\n", key_len,*YYCURSOR);
 			return 0;
 		}
 		YYCURSOR++; // point at key string
@@ -225,7 +341,6 @@ static const u8 * lex_searchObj(const u8 *inputx, u8 **pathx)
 			key_len = strlen((const char *)YYCURSOR);
 			isNullTerminated=1;
 		}
-		
 		if(key_len != path_len){
 			goto next;
 		}
@@ -254,11 +369,11 @@ static const u8 * lex_searchObj(const u8 *inputx, u8 **pathx)
 }
 
 // given an ION object, search for given path, ending with '.' '[' or '\0'
-static const u8 * lex_searchArray(const u8 *inputx, u8 **pathx)
+static const u8 * lex_searchArray(const u8 *inputx, u8 **pathx, Context * c)
 {                                    //
 	const u8 *YYCURSOR = inputx;
 	u8 *path = *pathx;
-	u32 target_index;
+	u32 target_index=0;
 	u32 array_index=0;
 	u32 path_len=0;
 	
@@ -286,6 +401,9 @@ static const u8 * lex_searchArray(const u8 *inputx, u8 **pathx)
 	if (path_len==0)
 	{
 		// get top of stack
+		//printf("lex_searchArraypath_len==0\n");
+		DECREMENT_STACK
+		target_index = (c->stk-1)->i;
 		// use as index
 	} else if ( (*path == '?') || (*path == '#') ) {
 		// skiparray
@@ -294,12 +412,6 @@ static const u8 * lex_searchArray(const u8 *inputx, u8 **pathx)
 		YYCURSOR--;
 		// return
 		return YYCURSOR; // success
-	} else if ( (*path >= '0') || (*path <= '9') ) {
-		// get value of text
-		// use it as index
-	} else if (*path == '$') {
-		// get variable
-		// use as index
 	}
 	// we have an index
 	
@@ -341,7 +453,7 @@ static const u8 * lex_searchArray(const u8 *inputx, u8 **pathx)
  * '.#' could be key for number of elements (length of array)
 */
 // given an ION element, search for given path
-static const u8 * lex_findPath(const u8 *inputx, u8 *pathx)
+static const u8 * lex_findPath(const u8 *inputx, u8 *pathx, Context * c)
 {                                    //
 	const u8 *YYCURSOR = inputx;
 	u8 *path = pathx;
@@ -355,6 +467,7 @@ static const u8 * lex_findPath(const u8 *inputx, u8 *pathx)
 		}
 		path++;
 		YYCURSOR++;
+		//printf("lex_searchObj.%s\n", path);
 		return lex_searchObj(YYCURSOR, &path);
 	} else if (*pathx == '[') {
 		if(*YYCURSOR != ION_ARR_START)
@@ -364,7 +477,7 @@ static const u8 * lex_findPath(const u8 *inputx, u8 *pathx)
 		}
 		path++;
 		YYCURSOR++;
-		return lex_searchArray(YYCURSOR, &path);
+		return lex_searchArray(YYCURSOR, &path, c);
 	} else {
 		printf("ERROR lex_findPath: not a valid path ION Obj.\n");
 		return 0;
@@ -399,7 +512,7 @@ static int lex_printFSON(u8 *YYCURSORx)
 		fputc ('[', stdout);
 		array_count++;
 	} else {
-		printf("invalid ION inside lex_printFSON\n");
+		printf("invalid ION inside lex_printFSON: %X\n", *YYCURSOR);
 	}
 	YYCURSOR++;
 	
@@ -421,6 +534,7 @@ loop: // label for looping within the lexxer
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			fputc (',', stdout);
+			flags[flags_index] &= 0xFD;
 		}
 		goto loop;
 	}
@@ -430,6 +544,7 @@ loop: // label for looping within the lexxer
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			fputc (',', stdout);
+			flags[flags_index] &= 0xFD;
 		}
 		goto loop;
 	}
@@ -439,6 +554,7 @@ loop: // label for looping within the lexxer
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			fputc (',', stdout);
+			flags[flags_index] &= 0xFD;
 		}
 		goto loop;
 	}
@@ -448,6 +564,7 @@ loop: // label for looping within the lexxer
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			fputc (',', stdout);
+			flags[flags_index] &= 0xFD;
 		}
 		goto loop;
 		
@@ -458,6 +575,7 @@ loop: // label for looping within the lexxer
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			fputc (',', stdout);
+			flags[flags_index] &= 0xFD;
 		}
 		goto loop;;
 	}
@@ -467,6 +585,7 @@ loop: // label for looping within the lexxer
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			fputc (',', stdout);
+			flags[flags_index] &= 0xFD;
 		}
 		goto loop;
 	}
@@ -492,6 +611,7 @@ loop: // label for looping within the lexxer
 			fputc (',', stdout);
 		}
 		flags_index--;
+		flags[flags_index] &= 0xFD;
 		goto loop;
 	}
 
@@ -516,6 +636,7 @@ loop: // label for looping within the lexxer
 			fputc (',', stdout);
 		}
 		flags_index--;
+		flags[flags_index] &= 0xFD;
 		goto loop;
 	}
 
@@ -553,6 +674,7 @@ loop: // label for looping within the lexxer
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			fputc (',', stdout);
+			flags[flags_index] &= 0xFD;
 		}
 		goto loop;
 	}
@@ -565,6 +687,7 @@ loop: // label for looping within the lexxer
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			fputc (',', stdout);
+			flags[flags_index] &= 0xFD;
 		}
 		goto loop;
 	}
@@ -584,11 +707,13 @@ loop: // label for looping within the lexxer
 			{
 				fputc (',', stdout);
 				// set value flag
-				flags[flags_index] |= 0x02;
+				//flags[flags_index] |= 0x02;
+				flags[flags_index] &= 0xFD;
 			} else {
 				fputc (':', stdout);
 				// clear value flag for key
-				flags[flags_index] &= 0xFD;
+				//flags[flags_index] &= 0xFD;
+				flags[flags_index] |= 0x02;
 			}
 		}
 		goto loop;
@@ -605,13 +730,15 @@ loop: // label for looping within the lexxer
 			if((flags[flags_index]&0x03)!=1) // either in array or is a val
 			{
 				fputc (',', stdout);
-				// set object flag
-				flags[flags_index] |= 0x02;
+				// set value flag
+				//flags[flags_index] |= 0x02;
+				flags[flags_index] &= 0xFD;
 			} else {
 				fputc (':', stdout);
 				// clear value flag for key
-				flags[flags_index] &= 0xFD;
-			}	
+				//flags[flags_index] &= 0xFD;
+				flags[flags_index] |= 0x02;
+			}
 		}
 		goto loop;
 	}

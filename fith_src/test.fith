@@ -206,10 +206,16 @@ jdone
 1  =$jsonObj.dogs.i
 7.864 =$jsonObj.height.d
 '["yoyo","hello motto"]' =$jsonObj.favs.j
+'{"circuit":"breaker","pencil":"broken"}' =$jsonObj.inBox.j
 'special' =$jsonObj.type.s $jsonObj p
 
 $jsonObj s2o p
-
+$jsonObj s2o search
+$jsonObj s2o '.type' ion-get p
+ $jsonObj s2o '.age' ion-get . drop
+$jsonObj s2o '.height' ion-get f. drop
+ $jsonObj s2o '.favs' ion-get dup p 'heelo' p 0 swap . '[]' ion-get p
+\ $jsonObj s2o '.inBox' ion-get p
 
 
 

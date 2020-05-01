@@ -108,7 +108,7 @@ StringTos64Tree_traverse(StringTos64Node tree, TravState_i *s)
 static StringTos64Node
 StringTos64Tree_find(StringTos64Node tree, u8 *target)
 {
-	s64 res;
+	s32 res;
 	while (tree && ((res=CMP(target, tree->key))!=0) ) {
 		s8 next_step = (res>0);
 		tree = tree->next[next_step];
@@ -226,7 +226,7 @@ StringTos64Tree_insert(StringTos64Node *treep, u8 *target, u32 len, s64 val)
 	 */
 	StringTos64Node tree = *treep;
 	StringTos64Node *path_top = treep;
-	s64 res;
+	s32 res;
 	u32 i=0;
 	u8 node_len;
 	while (tree && ((res=CMP(target, tree->key))!=0) ) {
@@ -321,7 +321,7 @@ StringTos64Tree_delete(StringTos64Node *treep, u8 *target)
 	StringTos64Node tree = *treep;
 	StringTos64Node *path_top = treep;
 	StringTos64Node *targetp = NULL;
-	s64 res;
+	s32 res;
 	s8 dir;
 	
 	while (tree) {
