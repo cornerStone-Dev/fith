@@ -368,6 +368,27 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	"ion-set-s" { // need to write the path
+		// set string function for ion objects
+		// if path is object, does not exist, then create it
+		// if path is an array, fail if past bounds. Needs append operator.
+		// arguments... string ionObject 'path'
+		STACK_CHECK(-3)
+		DECREMENT_STACK
+		u8 *value = (u8 *)lex_findPath((c->stk-1)->s+4, c->stk->s, c);
+		// return pointer into ION. If End obj or End Array then nothing found.
+		if (*value == ION_OBJ_END)
+		{
+			// create new ion with additional item
+			c->stk->s = (u8*)strrchr((const char *)c->stk->s, '.')+1;
+			(c->stk-2)->s = ION_newVal((c->stk-1)->s, value, *(c->stk-2), 2, c->stk->s);
+		}
+		//*(c->stk-1) = lex_returnVal(value);
+		//c->stk--;
+		DECREMENT_STACK
+		goto loop;
+	}
+	
 	"ion-get" {
 		// get function for ion objects
 		// arguments... ionObject 'path'
@@ -380,13 +401,14 @@ loop: // label for looping within the lexxer
 	}
 	
 	"search" {
+		u8 *temp = (((c->stk-1)->s)+5);
 		(c->stk+1)->s = "type";
-		(c->stk+2)->s = lex_searchObj((((c->stk-1)->s)+5), &((c->stk+1)->s));
-		(c->stk+3)->i = *(c->stk+2)->s - 0x92;
-		(c->stk+2)->s++;
+		lex_searchObj(&temp, &((c->stk+1)->s));
+		(c->stk+3)->i = *temp - 0x92;
+		temp++;
 		for(u32 i=0; i<(c->stk+3)->i; i++)
 		{
-			fputc((c->stk+2)->s[i], stdout);
+			fputc(temp[i], stdout);
 		}
 		fputc('\n', stdout);
 		goto loop;
@@ -1147,7 +1169,7 @@ loop: // label for looping within the lexxer
 											c->stk);   // value
 		if ((c->stk+3)->i){
 			printf("json_extract returned \"null\"\n");
-			c->stk->s = (u8*)"null";
+			c->stk->s = (u8*)ION_NULL_VAL;
 		}
 		*YYCURSOR = (c->stk+2)->i;
 		INCREMENT_STACK

@@ -87,6 +87,9 @@ typedef struct context_s{
 } Context;
 
 static sqlite3 *fdb;
+const u8 *ION_NULL_VAL = (const u8 *)"null";
+const u8 *ION_TRUE_VAL = (const u8 *)"true";
+const u8 *ION_FALSE_VAL = (const u8 *)"false";
 
 
 /* function prototypes */

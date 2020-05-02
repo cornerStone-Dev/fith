@@ -215,8 +215,8 @@ $jsonObj s2o '.type' ion-get p
  $jsonObj s2o '.age' ion-get . drop
 $jsonObj s2o '.height' ion-get f. drop
  $jsonObj s2o '.favs' ion-get dup p 'heelo' p 0 swap . '[]' ion-get p
-\ $jsonObj s2o '.inBox' ion-get p
-
+ $jsonObj s2o '.inBox' ion-get p
+ $jsonObj s2o '.inBox' ion-get 'hammer' swap '.tool' ion-set-s p
 
 
 \=$cart2[#].i

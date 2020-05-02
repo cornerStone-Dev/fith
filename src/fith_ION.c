@@ -74,3 +74,315 @@ ION_Int(const u8 *input, u64 len)
 	
 	return (s64)ionInt;
 }
+
+// types 0=float 1=int 2=string 3=ion
+static u32
+ION_getValLen(Data val, u32 type)
+{
+	u32 val_length;
+	switch(type)
+	{
+		case 0:
+		val_length=9;
+		break;
+		case 1:
+		val_length= 9-(__builtin_clzl((u64)val.i)/8);
+		break;
+		case 2:
+		val_length=strlen((const char *)val.s)+1;
+		break;
+		case 3:
+		val_length = ION_getLen(val.s);
+		break;
+	}
+	return val_length;
+}
+
+static void
+ION_writeInt(u8 **outx, s64 val)
+{
+	u64 ionInt = (u64) val;
+	u8 *out = *outx;
+	s32 lz;
+	lz = __builtin_clzl(ionInt);
+	if (lz==0)
+	{
+		// negative number
+		*out = ION_NEG;
+		out++;
+		// get absolute value
+		ionInt = (u64)labs(val);
+		// retake leading zeros
+		lz = __builtin_clzl(ionInt);
+	}
+	lz/=8;
+	switch (lz){
+		case 0:
+		// 8 bytes of int
+		*out = ION_INT8;
+		out++;
+		*out = (ionInt&0xFF00000000000000)>>56;
+		out++;
+		*out = (ionInt&0x00FF000000000000)>>48;
+		out++;
+		*out = (ionInt&0x0000FF0000000000)>>40;
+		out++;
+		*out = (ionInt&0x000000FF00000000)>>32;
+		out++;
+		*out = (ionInt&0x00000000FF000000)>>24;
+		out++;
+		*out = (ionInt&0x0000000000FF0000)>>16;
+		out++;
+		*out = (ionInt&0x000000000000FF00)>>8;
+		out++;
+		*out = ionInt&0xFF;
+		out++;
+		break;
+		case 1:
+		// 7 bytes of int
+		*out = ION_INT7;
+		out++;
+		*out = (ionInt&0x00FF000000000000)>>48;
+		out++;
+		*out = (ionInt&0x0000FF0000000000)>>40;
+		out++;
+		*out = (ionInt&0x000000FF00000000)>>32;
+		out++;
+		*out = (ionInt&0x00000000FF000000)>>24;
+		out++;
+		*out = (ionInt&0x0000000000FF0000)>>16;
+		out++;
+		*out = (ionInt&0x000000000000FF00)>>8;
+		out++;
+		*out = ionInt&0xFF;
+		out++;
+		break;
+		case 2:
+		// 6 bytes of int
+		*out = ION_INT6;
+		out++;
+		*out = (ionInt&0x0000FF0000000000)>>40;
+		out++;
+		*out = (ionInt&0x000000FF00000000)>>32;
+		out++;
+		*out = (ionInt&0x00000000FF000000)>>24;
+		out++;
+		*out = (ionInt&0x0000000000FF0000)>>16;
+		out++;
+		*out = (ionInt&0x000000000000FF00)>>8;
+		out++;
+		*out = ionInt&0xFF;
+		out++;
+		break;
+		case 3:
+		// 5 bytes of int
+		*out = ION_INT5;
+		out++;
+		*out = (ionInt&0x000000FF00000000)>>32;
+		out++;
+		*out = (ionInt&0x00000000FF000000)>>24;
+		out++;
+		*out = (ionInt&0x0000000000FF0000)>>16;
+		out++;
+		*out = (ionInt&0x000000000000FF00)>>8;
+		out++;
+		*out = ionInt&0xFF;
+		out++;
+		break;
+		case 4:
+		// 4 bytes of int
+		*out = ION_INT4;
+		out++;
+		*out = (ionInt&0x00000000FF000000)>>24;
+		out++;
+		*out = (ionInt&0x0000000000FF0000)>>16;
+		out++;
+		*out = (ionInt&0x000000000000FF00)>>8;
+		out++;
+		*out = ionInt&0xFF;
+		out++;
+		break;
+		case 5:
+		// 3 bytes of int
+		*out = ION_INT3;
+		out++;
+		*out = (ionInt&0x0000000000FF0000)>>16;
+		out++;
+		*out = (ionInt&0x000000000000FF00)>>8;
+		out++;
+		*out = ionInt&0xFF;
+		out++;
+		break;
+		case 6:
+		// 2 bytes of int
+		*out = ION_INT2;
+		out++;
+		*out = (ionInt&0x000000000000FF00)>>8;
+		out++;
+		*out = ionInt&0xFF;
+		out++;
+		break;
+		case 7:
+		if (ionInt == 1)
+		{
+			// 1
+			*out = ION_1;
+			out++;
+		} else {
+			// byte 1 of int
+			*out = ION_INT1;
+			out++;
+			*out = ionInt&0xFF;
+			out++;
+		}
+		break;
+		case 8:
+		// 0
+		*out = ION_0;
+		out++;
+		break;
+		default:
+		break;
+	}
+	*outx = out;
+}
+
+static void
+ION_writeFloat(u8 **outx, f64 val)
+{
+	Data data;
+	data.d = val;
+	u64 ionInt = (u64) data.i;
+	u8 *out = *outx;
+	*out = ION_FLOAT;
+	out++;
+	*out = (ionInt&0xFF00000000000000)>>56;
+	out++;
+	*out = (ionInt&0x00FF000000000000)>>48;
+	out++;
+	*out = (ionInt&0x0000FF0000000000)>>40;
+	out++;
+	*out = (ionInt&0x000000FF00000000)>>32;
+	out++;
+	*out = (ionInt&0x00000000FF000000)>>24;
+	out++;
+	*out = (ionInt&0x0000000000FF0000)>>16;
+	out++;
+	*out = (ionInt&0x000000000000FF00)>>8;
+	out++;
+	*out = ionInt&0xFF;
+	out++;
+	*outx = out;
+}
+
+static void
+ION_writeString(u8 **outx, const u8 *string, u32 len)
+{
+	u8 *out = *outx;
+	if (len < 45)
+	{
+		*out = ION_STRING01+len-1;
+	} else {
+		*out = ION_STRING_N;
+		out++;
+		memcpy(out, string, len);
+		out+=len;
+		*out =0; //null terminate long strings
+		out++;
+		*outx = out;
+		return;
+	}
+	out++;
+	memcpy(out, string, len);
+	out+=len;
+	*outx = out;
+	return;
+}
+
+static void
+ION_writeION(u8 **outx, const u8 *ion, u32 len)
+{
+	u8 *out = *outx;
+	len-=4;
+	memcpy(out, (ion+4), len);
+	out+=len;
+	*outx = out;
+	return;
+}
+
+// types 0=float 1=int 2=string 3=ion
+static void
+ION_writeVal(u8 **outx, Data val, u32 type, u32 len)
+{
+	
+	switch(type)
+	{
+		case 0:
+		ION_writeFloat(outx, val.d);
+		break;
+		case 1:
+		ION_writeInt(outx, val.i);
+		break;
+		case 2:
+		ION_writeString(outx, val.s, len-1);
+		break;
+		case 3:
+		ION_writeION(outx, val.s, len);
+		break;
+	}
+}
+
+// types 0=float 1=int 2=string 3=ion
+static u8 *
+ION_newVal(const u8 *input, const u8 *insert_location, Data val, u32 type, const u8 *path_ending)
+{
+	const u8 *cursor = input;
+	u8 *buff;
+	u8 *buffp;
+	Data pathv;
+	u32 fson_length;
+	u32 val_length;
+	u32 key_length;
+	
+	pathv.s=(u8*)path_ending;
+	key_length= ION_getValLen(pathv, 2);
+	fson_length = ION_getLen(input);
+	cursor+=4;
+	// get length of val
+	val_length = ION_getValLen(val, type);
+	// allocate new buffer
+	buff = malloc(fson_length+val_length+key_length+2);
+	buffp = buff+4;
+	
+	// inserting new value. I am either at the end or overwriting a previous value
+	// if at the end of object or array, must be end
+	if (insert_location==(input+fson_length-1)&&(*insert_location==ION_OBJ_END)) // true end
+	{
+		printf("attempting to add to an Object!!!, %s\n",path_ending );
+		memcpy(buffp, cursor, insert_location-cursor); //copy over begining
+		buffp+=(insert_location-cursor);
+		ION_writeVal(&buffp, pathv, 2, key_length);
+		ION_writeVal(&buffp, val, type, val_length);
+		memcpy(buffp, insert_location, fson_length-(insert_location-input)); //copy ending
+		buffp+=(fson_length-(insert_location-input));
+		fson_length = buffp - buff; // get length
+		//length +=3;
+		//length /=4;
+		buff[0] = ((fson_length&0x00000000FF000000)>>24)|0x80;
+		buff[1] = (fson_length&0x0000000000FF0000)>>16;
+		buff[2] = (fson_length&0x000000000000FF00)>>8;
+		buff[3] = fson_length&0xFF;
+		
+	} else {
+		printf("not the end of the an Object!!!\n");
+	}
+	return buff;
+	//~ else if ( (*insert_location==ION_OBJ_END) ){
+		//~ // end of sub obj NO ARRAY ALLOWED, must use append operator
+	//~ } else {
+		//~ // value must have been found to over write
+	//~ }
+	
+
+	
+}
