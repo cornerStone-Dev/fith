@@ -174,7 +174,7 @@ indexInc: $index dup 1 + =$index ;
 
 0   =$index
 5   =$matrix
-10 =$sizeOfMatrix
+200 =$sizeOfMatrix
 
 $sizeOfMatrix $sizeOfMatrix * . array =$matrix
 
@@ -185,6 +185,8 @@ $sizeOfMatrix $sizeOfMatrix * . array =$matrix
 5 $matrix[] . drop
 .
 \GC
+'[0]' s2o dup p =$IONarray
+
 0
 begin
 	dup =$cart1[#].i
@@ -196,7 +198,7 @@ $cart1 .
 jeach  \first val on stack .
 	$cart1 
 	jeach 
-		 over * =$cart2[#].i \indexInc =$matrix[]
+		 over * $IONarray '[#]' ion-set-i ( dup p ) =$IONarray \=$cart2[#].i \indexInc =$matrix[] \ $IONarray '[#]' ion-set-i ( dup p ) =$IONarray
 	jdone
 	drop \GC
 jdone
@@ -210,7 +212,7 @@ jdone
 'special' =$jsonObj.type.s $jsonObj p
 
 $jsonObj s2o p
-$jsonObj s2o search
+\$jsonObj s2o search
 $jsonObj s2o '.type' ion-get p
  $jsonObj s2o '.age' ion-get . drop
 $jsonObj s2o '.height' ion-get f. drop
@@ -218,6 +220,7 @@ $jsonObj s2o '.height' ion-get f. drop
  $jsonObj s2o '.inBox' ion-get p
  $jsonObj s2o '.inBox' ion-get 'hammer' swap '.tool' ion-set-s p
 
+-1 -05 -0xFF .
 
 \=$cart2[#].i
 

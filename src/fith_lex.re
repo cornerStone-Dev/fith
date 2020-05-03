@@ -12,7 +12,7 @@
 	// integer literals
 	oct = "0" [0-7]*;
 	dec = [1-9][0-9]*;
-	hex = '0x' [0-9a-fA-F]+;
+	hex = '0x' [0-9A-F]+; // a-f removed
 	// floating literals
 	frc = [0-9]* "." [0-9]+ | [0-9]+ ".";
 	exp = 'e' [+-]? [0-9]+;
@@ -24,7 +24,7 @@
 	string_lit_end = ([^'\n] | ([\\] [']))* ['];
 	mangled_string_lit = ['] ([^'\x00\x03] | ([\\] [']))* "\x00";
 	char_lit = [`] ([^`\x03] | ([\\] [`]))* [`];
-	integer = "-"? oct | dec | hex;
+	integer = "-"? (oct | dec | hex);
 	lblock =     "{";
 	rblock =     "}";
 	lparen =     "(";
@@ -275,7 +275,7 @@ loop: // label for looping within the lexxer
 	}
  
 	integer {
-		c->stk->i = atol( (const char *)start );
+		c->stk->i = strtol( (const char *)start , NULL, 0);
 		INCREMENT_STACK
 		goto loop;
 	}
@@ -367,7 +367,84 @@ loop: // label for looping within the lexxer
 		printf("\n");
 		goto loop;
 	}
-	
+
+	"ion-set-i" { // need to write the path
+		// set string function for ion objects
+		// if path is object, does not exist, then create it
+		// if path is an array, fail if past bounds. Needs append operator.
+		// arguments... int ionObject 'path'
+		STACK_CHECK(-3)
+		DECREMENT_STACK
+		u32 path_len;
+		s32 search_res;
+		u8 *path = c->stk->s;
+		const u8 *YYCURSOR = (c->stk-1)->s+4;
+		move_on2:
+		if(*path == '.') // we are looking for a key
+		{
+			if(*YYCURSOR != ION_OBJ_START)
+			{
+				printf("ERROR lex_findPath: not a ION Obj.\n");
+				return 0;
+			}
+			path++;
+			YYCURSOR++;
+			path_len = getPathLen(path);
+			//printf("lex_searchObj.%s\n", path);
+			search_res = lex_searchObj(&YYCURSOR, path, path_len);
+			path+=path_len;
+			if ( (search_res==0) && (*path!=0) )
+			{
+				// success and more path to go through
+				goto move_on2;
+			}
+			if ( (search_res==0) && (*path==0) )
+			{
+				// success and more path to go through
+				// done YYCURSOR points at target value
+			}
+			if ( (search_res==1) && (*path!=0) )
+			{
+				// path not found AND path not complete
+				// failure case, no set is possible
+				printf("Key not found in path. More path left unread.\n");
+				goto loop;
+			}
+			if ( (search_res==1) && (*path==0) )
+			{
+				// path not found AND path is complete
+				// we now need to insert key and value pair
+				path-=path_len;
+				(c->stk-2)->s = ION_newKeyVal((c->stk-1)->s, YYCURSOR, *(c->stk-2), 2, path);
+			}
+		} else if (*path == '[') {
+			if(*YYCURSOR != ION_ARR_START)
+			{
+				printf("ERROR lex_findPath: not a ION Array, %d.\n",*YYCURSOR);
+				return 0;
+			}
+			path++;
+			YYCURSOR++;
+			lex_searchArray(&YYCURSOR, &path, c);
+			(c->stk-2)->s = ION_newVal((c->stk-1)->s, YYCURSOR, *(c->stk-2), 1);
+		} else {
+			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
+			return 0;
+		}
+		//~ u8 *value = (u8 *)lex_findPath((c->stk-1)->s+4, c->stk->s, c);
+		//~ // return pointer into ION. If End obj or End Array then nothing found.
+		//~ if (*value == ION_OBJ_END)
+		//~ {
+			//~ // create new ion with additional item
+			//~ c->stk->s = (u8*)strrchr((const char *)c->stk->s, '.')+1;
+			//~ (c->stk-2)->s = ION_newVal((c->stk-1)->s, value, *(c->stk-2), 2, c->stk->s);
+		//~ }
+		//*(c->stk-1) = lex_returnVal(value);
+		//c->stk--;
+		DECREMENT_STACK
+		goto loop;
+	}
+
 	"ion-set-s" { // need to write the path
 		// set string function for ion objects
 		// if path is object, does not exist, then create it
@@ -375,14 +452,69 @@ loop: // label for looping within the lexxer
 		// arguments... string ionObject 'path'
 		STACK_CHECK(-3)
 		DECREMENT_STACK
-		u8 *value = (u8 *)lex_findPath((c->stk-1)->s+4, c->stk->s, c);
-		// return pointer into ION. If End obj or End Array then nothing found.
-		if (*value == ION_OBJ_END)
+		u32 path_len;
+		s32 search_res;
+		u8 *path = c->stk->s;
+		const u8 *YYCURSOR = (c->stk-1)->s+4;
+		move_on:
+		if(*path == '.') // we are looking for a key
 		{
-			// create new ion with additional item
-			c->stk->s = (u8*)strrchr((const char *)c->stk->s, '.')+1;
-			(c->stk-2)->s = ION_newVal((c->stk-1)->s, value, *(c->stk-2), 2, c->stk->s);
+			if(*YYCURSOR != ION_OBJ_START)
+			{
+				printf("ERROR lex_findPath: not a ION Obj.\n");
+				return 0;
+			}
+			path++;
+			YYCURSOR++;
+			path_len = getPathLen(path);
+			//printf("lex_searchObj.%s\n", path);
+			search_res = lex_searchObj(&YYCURSOR, path, path_len);
+			path+=path_len;
+			if ( (search_res==0) && (*path!=0) )
+			{
+				// success and more path to go through
+				goto move_on;
+			}
+			if ( (search_res==0) && (*path==0) )
+			{
+				// success and more path to go through
+				// done YYCURSOR points at target value
+			}
+			if ( (search_res==1) && (*path!=0) )
+			{
+				// path not found AND path not complete
+				// failure case, no set is possible
+				printf("Key not found in path. More path left unread.\n");
+				goto loop;
+			}
+			if ( (search_res==1) && (*path==0) )
+			{
+				// path not found AND path is complete
+				// we now need to insert key and value pair
+				path-=path_len;
+				(c->stk-2)->s = ION_newKeyVal((c->stk-1)->s, YYCURSOR, *(c->stk-2), 2, path);
+			}
+		} else if (*path == '[') {
+			if(*YYCURSOR != ION_ARR_START)
+			{
+				printf("ERROR lex_findPath: not a ION Array.\n");
+				return 0;
+			}
+			path++;
+			YYCURSOR++;
+			lex_searchArray(&YYCURSOR, &path, c);
+		} else {
+			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
+			return 0;
 		}
+		//~ u8 *value = (u8 *)lex_findPath((c->stk-1)->s+4, c->stk->s, c);
+		//~ // return pointer into ION. If End obj or End Array then nothing found.
+		//~ if (*value == ION_OBJ_END)
+		//~ {
+			//~ // create new ion with additional item
+			//~ c->stk->s = (u8*)strrchr((const char *)c->stk->s, '.')+1;
+			//~ (c->stk-2)->s = ION_newVal((c->stk-1)->s, value, *(c->stk-2), 2, c->stk->s);
+		//~ }
 		//*(c->stk-1) = lex_returnVal(value);
 		//c->stk--;
 		DECREMENT_STACK
@@ -400,19 +532,19 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
-	"search" {
-		u8 *temp = (((c->stk-1)->s)+5);
-		(c->stk+1)->s = "type";
-		lex_searchObj(&temp, &((c->stk+1)->s));
-		(c->stk+3)->i = *temp - 0x92;
-		temp++;
-		for(u32 i=0; i<(c->stk+3)->i; i++)
-		{
-			fputc(temp[i], stdout);
-		}
-		fputc('\n', stdout);
-		goto loop;
-	}
+	//~ "search" {
+		//~ u8 *temp = (((c->stk-1)->s)+5);
+		//~ (c->stk+1)->s = "type";
+		//~ lex_searchObj(&temp, &((c->stk+1)->s));
+		//~ (c->stk+3)->i = *temp - 0x92;
+		//~ temp++;
+		//~ for(u32 i=0; i<(c->stk+3)->i; i++)
+		//~ {
+			//~ fputc(temp[i], stdout);
+		//~ }
+		//~ fputc('\n', stdout);
+		//~ goto loop;
+	//~ }
 	
 	"praw" {
 		DECREMENT_STACK
@@ -891,7 +1023,7 @@ loop: // label for looping within the lexxer
 	}
 
 	"s2i" {
-		(c->stk-1)->i = atol( (const char *)(c->stk-1)->s );
+		(c->stk-1)->i = strtol( (const char *)(c->stk-1)->s, NULL, 0);
 		goto loop;
 	}
 	

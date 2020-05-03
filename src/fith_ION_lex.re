@@ -314,26 +314,32 @@ loop: // label for looping within the lexxer
 	*/                               // end of re2c block
 }
 
-// given an ION object, search for given path, ending with '.' '[' or '\0'
-static void lex_searchObj(const u8 **inputx, u8 **pathx)
-{                                    //
-	const u8 *YYCURSOR = *inputx;
-	u8 *path = *pathx;
-	u32 key_len;
-	u32 path_len=0, i=0, isNullTerminated=0;
-	
+static u32 getPathLen(const u8 *path)
+{
+	u32 path_len=0;
 	// find length of this part of the path
 	while ( (path[path_len]!=0) && (path[path_len]!='[') && (path[path_len]!='.') )
 	{
 		path_len++;
 	}
+	return path_len;
+}
+
+// 3 cases: error, matching key-value found, and nothing found, returns end
+// given an ION object, search for given path, ending with '.' '[' or '\0'
+static s32 lex_searchObj(const u8 **inputx, u8 *pathx, u32 path_len)
+{                                    //
+	const u8 *YYCURSOR = *inputx;
+	u8 *path = pathx;
+	u32 key_len;
+	u32 i=0, isNullTerminated=0;
+	
 	while(1){
 		key_len = (*YYCURSOR) - ION_STRING01 +1;
 		if (key_len>45)
 		{
 			printf("Error: %d,%d  lex_searchObj Keys must be strings\n", key_len,*YYCURSOR);
-			*pathx+=strlen((const char *)*pathx);
-			return;
+			exit(1);
 		}
 		YYCURSOR++; // point at key string
 		if ((path_len>44)&&(key_len==ION_STRING_N))
@@ -353,9 +359,8 @@ static void lex_searchObj(const u8 **inputx, u8 **pathx)
 		}
 		if(i==key_len)
 		{
-			*pathx = &path[path_len]; // move path forward
 			*inputx = &YYCURSOR[i];
-			return ; // success
+			return 0; // success
 		}
 		i=0;
 		
@@ -365,9 +370,8 @@ static void lex_searchObj(const u8 **inputx, u8 **pathx)
 		lex_skipVal(&YYCURSOR); // skip value
 		if(*YYCURSOR==ION_OBJ_END) // end of object found
 		{
-			*pathx+=strlen((const char *)*pathx);
 			*inputx = YYCURSOR;
-			return;
+			return 1;
 		}
 	}
 }
@@ -460,12 +464,15 @@ static void lex_searchArray(const u8 **inputx, u8 **pathx, Context * c)
  * '.#' could be key for number of elements (length of array)
 */
 // given an ION element, search for given path
+// refactored
 static const u8 * lex_findPath(const u8 *inputx, u8 *pathx, Context * c)
 {                                    //
 	const u8 *YYCURSOR = inputx;
 	u8 *path = pathx;
+	u32 path_len;
+	/*s32 res;*/
 	
-	while(*path){
+	while((*path)){
 		if(*path == '.') // we are looking for a key
 		{
 			if(*YYCURSOR != ION_OBJ_START)
@@ -475,8 +482,10 @@ static const u8 * lex_findPath(const u8 *inputx, u8 *pathx, Context * c)
 			}
 			path++;
 			YYCURSOR++;
+			path_len = getPathLen(path);
 			//printf("lex_searchObj.%s\n", path);
-			lex_searchObj(&YYCURSOR, &path);
+			/*res = */lex_searchObj(&YYCURSOR, path, path_len);
+			path+=path_len;
 		} else if (*path == '[') {
 			if(*YYCURSOR != ION_ARR_START)
 			{
@@ -529,13 +538,14 @@ static int lex_printFSON(u8 *YYCURSORx)
 
 loop: // label for looping within the lexxer
 	start = YYCURSOR;
+	//printf("CURRENT CHAR (%X) \n",*(YYCURSOR));
 
 	/*!re2c                          // start of re2c block **/
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { 
-		printf("invalid ION inside lex_printFSON\n");
+		printf("invalid ION inside lex_printFSON: %X %X\n",*(YYCURSOR-2),*(YYCURSOR-1));
 		return -1;
 	}//   default rule with its semantic action skip garbage
 
@@ -1013,147 +1023,6 @@ loop: // label for looping within the lexxer
 
 	"-"?( "0"|([1-9][0-9]*) )  { // JSON integer
 		ION_writeInt(&out, atol( (const char *)start ));
-		//~ ionInt = (u64)atol( (const char *)start );
-		//~ lz = __builtin_clzl(ionInt);
-		//~ if (lz==0)
-		//~ {
-			//~ // negative number
-			//~ *out = ION_NEG;
-			//~ out++;
-			//~ // get absolute value
-			//~ ionInt = (u64)labs((s64)ionInt);
-			//~ // retake leading zeros
-			//~ lz = __builtin_clzl(ionInt);
-		//~ }
-		//~ lz/=8;
-		//~ switch (lz){
-			//~ case 0:
-			//~ // 8 bytes of int
-			//~ *out = ION_INT8;
-			//~ out++;
-			//~ *out = (ionInt&0xFF00000000000000)>>56;
-			//~ out++;
-			//~ *out = (ionInt&0x00FF000000000000)>>48;
-			//~ out++;
-			//~ *out = (ionInt&0x0000FF0000000000)>>40;
-			//~ out++;
-			//~ *out = (ionInt&0x000000FF00000000)>>32;
-			//~ out++;
-			//~ *out = (ionInt&0x00000000FF000000)>>24;
-			//~ out++;
-			//~ *out = (ionInt&0x0000000000FF0000)>>16;
-			//~ out++;
-			//~ *out = (ionInt&0x000000000000FF00)>>8;
-			//~ out++;
-			//~ *out = ionInt&0xFF;
-			//~ out++;
-			//~ break;
-			//~ case 1:
-			//~ // 7 bytes of int
-			//~ *out = ION_INT7;
-			//~ out++;
-			//~ *out = (ionInt&0x00FF000000000000)>>48;
-			//~ out++;
-			//~ *out = (ionInt&0x0000FF0000000000)>>40;
-			//~ out++;
-			//~ *out = (ionInt&0x000000FF00000000)>>32;
-			//~ out++;
-			//~ *out = (ionInt&0x00000000FF000000)>>24;
-			//~ out++;
-			//~ *out = (ionInt&0x0000000000FF0000)>>16;
-			//~ out++;
-			//~ *out = (ionInt&0x000000000000FF00)>>8;
-			//~ out++;
-			//~ *out = ionInt&0xFF;
-			//~ out++;
-			//~ break;
-			//~ case 2:
-			//~ // 6 bytes of int
-			//~ *out = ION_INT6;
-			//~ out++;
-			//~ *out = (ionInt&0x0000FF0000000000)>>40;
-			//~ out++;
-			//~ *out = (ionInt&0x000000FF00000000)>>32;
-			//~ out++;
-			//~ *out = (ionInt&0x00000000FF000000)>>24;
-			//~ out++;
-			//~ *out = (ionInt&0x0000000000FF0000)>>16;
-			//~ out++;
-			//~ *out = (ionInt&0x000000000000FF00)>>8;
-			//~ out++;
-			//~ *out = ionInt&0xFF;
-			//~ out++;
-			//~ break;
-			//~ case 3:
-			//~ // 5 bytes of int
-			//~ *out = ION_INT5;
-			//~ out++;
-			//~ *out = (ionInt&0x000000FF00000000)>>32;
-			//~ out++;
-			//~ *out = (ionInt&0x00000000FF000000)>>24;
-			//~ out++;
-			//~ *out = (ionInt&0x0000000000FF0000)>>16;
-			//~ out++;
-			//~ *out = (ionInt&0x000000000000FF00)>>8;
-			//~ out++;
-			//~ *out = ionInt&0xFF;
-			//~ out++;
-			//~ break;
-			//~ case 4:
-			//~ // 4 bytes of int
-			//~ *out = ION_INT4;
-			//~ out++;
-			//~ *out = (ionInt&0x00000000FF000000)>>24;
-			//~ out++;
-			//~ *out = (ionInt&0x0000000000FF0000)>>16;
-			//~ out++;
-			//~ *out = (ionInt&0x000000000000FF00)>>8;
-			//~ out++;
-			//~ *out = ionInt&0xFF;
-			//~ out++;
-			//~ break;
-			//~ case 5:
-			//~ // 3 bytes of int
-			//~ *out = ION_INT3;
-			//~ out++;
-			//~ *out = (ionInt&0x0000000000FF0000)>>16;
-			//~ out++;
-			//~ *out = (ionInt&0x000000000000FF00)>>8;
-			//~ out++;
-			//~ *out = ionInt&0xFF;
-			//~ out++;
-			//~ break;
-			//~ case 6:
-			//~ // 2 bytes of int
-			//~ *out = ION_INT2;
-			//~ out++;
-			//~ *out = (ionInt&0x000000000000FF00)>>8;
-			//~ out++;
-			//~ *out = ionInt&0xFF;
-			//~ out++;
-			//~ break;
-			//~ case 7:
-			//~ if (ionInt == 1)
-			//~ {
-				//~ // 1
-				//~ *out = ION_1;
-				//~ out++;
-			//~ } else {
-				//~ // byte 1 of int
-				//~ *out = ION_INT1;
-				//~ out++;
-				//~ *out = ionInt&0xFF;
-				//~ out++;
-			//~ }
-			//~ break;
-			//~ case 8:
-			//~ // 0
-			//~ *out = ION_0;
-			//~ out++;
-			//~ break;
-			//~ default:
-			//~ break;
-		//~ }
 		goto loop;
 	}
 
@@ -1187,8 +1056,9 @@ loop: // label for looping within the lexxer
 
 	 ["] ([^"] | ([\\] ["]))* ["] { // JSON string
 		u64 length;
-		length = YYCURSOR-start-2;
+		length = YYCURSOR-start-1;
 		start++;
+		if(length>45){length++;}
 		ION_writeString(&out, start, length);
 		//~ if (length < 45)
 		//~ {
