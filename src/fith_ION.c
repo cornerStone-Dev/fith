@@ -338,6 +338,53 @@ ION_writeVal(u8 **outx, Data val, u32 type, u32 len)
 
 // types 0=float 1=int 2=string 3=ion
 static u8 *
+ION_appVal(const u8 *input, Data val, u32 type, u32 fson_length)
+{
+	const u8 *cursor = input;
+	const u8 *insert_location = input+fson_length-1;
+	u8 *buff;
+	u8 *buffp;
+	u8 *endp;
+	//u32 fson_length;
+	u32 val_length;
+	u32 insert_offset=insert_location-input;
+	//printf("Array append!\n" );
+	//fson_length = ION_getLen(input);
+	cursor+=4;
+	// get length of val
+	val_length = ION_getValLen(val, type);
+	// allocate new buffer
+	//buff = malloc(fson_length+val_length);
+	buff = realloc(input, fson_length+val_length);
+	buffp = buff+4;
+	if(buff!=input)
+	{
+		
+		//printf("attempting to add to an Object NEW BUFF!!!\n" );
+		//memcpy(buffp, cursor, insert_location-cursor); //copy over begining
+		insert_location = buff+insert_offset;
+	}
+	buffp+=(insert_offset-4);
+	// end first
+	endp=buffp+val_length;
+	memcpy(endp, insert_location, fson_length-(insert_offset)); //copy ending
+	// done with end
+	ION_writeVal(&buffp, val, type, val_length);
+	//copy ending done above
+	buffp+=(fson_length-(insert_offset));
+	fson_length = buffp - buff; // get length
+	//length +=3;
+	//length /=4;
+	buff[0] = ((fson_length&0x00000000FF000000)>>24)|0x80;
+	//printf("header,%d\n", buff[0]);
+	buff[1] = (fson_length&0x0000000000FF0000)>>16;
+	buff[2] = (fson_length&0x000000000000FF00)>>8;
+	buff[3] = fson_length&0xFF;
+	return buff;
+}
+
+// types 0=float 1=int 2=string 3=ion
+static u8 *
 ION_newVal(const u8 *input, const u8 *insert_location, Data val, u32 type)
 {
 	const u8 *cursor = input;

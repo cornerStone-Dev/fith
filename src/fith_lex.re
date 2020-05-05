@@ -376,9 +376,32 @@ loop: // label for looping within the lexxer
 		STACK_CHECK(-3)
 		DECREMENT_STACK
 		u32 path_len;
+		u32 fson_length;
 		s32 search_res;
 		u8 *path = c->stk->s;
 		const u8 *YYCURSOR = (c->stk-1)->s+4;
+		
+		if(*path == '[')
+		{
+			if(*(path+1)== '#')
+			{
+				if(*YYCURSOR != ION_ARR_START)
+				{
+					printf("ERROR lex_findPath: not a ION Array, %d.\n",*YYCURSOR);
+					return 0;
+				}
+				path++;
+				YYCURSOR++;
+				fson_length = ION_getLen((c->stk-1)->s);
+				YYCURSOR = (c->stk-1)->s+fson_length;
+				(c->stk-2)->s = ION_appVal((c->stk-1)->s, *(c->stk-2), 1, fson_length);
+				DECREMENT_STACK
+				goto loop;
+			} else {
+				goto process_array;
+			}
+		}
+		
 		move_on2:
 		if(*path == '.') // we are looking for a key
 		{
@@ -400,7 +423,7 @@ loop: // label for looping within the lexxer
 			}
 			if ( (search_res==0) && (*path==0) )
 			{
-				// success and more path to go through
+				// success and NO more path to go through
 				// done YYCURSOR points at target value
 			}
 			if ( (search_res==1) && (*path!=0) )
@@ -418,6 +441,7 @@ loop: // label for looping within the lexxer
 				(c->stk-2)->s = ION_newKeyVal((c->stk-1)->s, YYCURSOR, *(c->stk-2), 2, path);
 			}
 		} else if (*path == '[') {
+			process_array:
 			if(*YYCURSOR != ION_ARR_START)
 			{
 				printf("ERROR lex_findPath: not a ION Array, %d.\n",*YYCURSOR);

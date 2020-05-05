@@ -53,7 +53,7 @@ loop: // label for looping within the lexxer
 	}
 
 	[\xbf] { // ION unknown string length
-		YYCURSOR+=strlen((const char *)YYCURSOR)+1;
+		YYCURSOR+=strlen((const char *)YYCURSOR+44)+1+44;
 		goto loop;
 	}
 
@@ -106,7 +106,7 @@ loop: // label for looping within the lexxer
 	}
 
 	[\xbf] { // ION unknown string length
-		YYCURSOR+=strlen((const char *)YYCURSOR)+1;
+		YYCURSOR+=strlen((const char *)YYCURSOR+44)+1+44;
 		goto loop;
 	}
 
@@ -189,7 +189,7 @@ loop: // label for looping within the lexxer
 	}
 
 	[\xbf] { // ION unknown string length
-		YYCURSOR+=strlen((const char *)YYCURSOR)+1;
+		YYCURSOR+=strlen((const char *)YYCURSOR+44)+1+44;
 		*YYCURSORx = YYCURSOR;
 		return;
 	}
@@ -304,7 +304,7 @@ loop: // label for looping within the lexxer
 	}
 
 	[\xbf] { // ION unknown string length
-		length=strlen((const char *)YYCURSOR)+1;
+		length=strlen((const char *)YYCURSOR+44)+1+44;
 		buff = malloc(length);
 		memcpy(buff, YYCURSOR, length);
 		retVal.s = buff;
@@ -344,7 +344,7 @@ static s32 lex_searchObj(const u8 **inputx, u8 *pathx, u32 path_len)
 		YYCURSOR++; // point at key string
 		if ((path_len>44)&&(key_len==ION_STRING_N))
 		{
-			key_len = strlen((const char *)YYCURSOR);
+			key_len = strlen((const char *)YYCURSOR+44)+44;
 			isNullTerminated=1;
 		}
 		if(key_len != path_len){
@@ -740,11 +740,11 @@ loop: // label for looping within the lexxer
 	}
 
 	[\xbf] { // ION unknown string length
-		u32 len = strlen((const char *)YYCURSOR); // including null
+		u32 len = strlen((const char *)YYCURSOR+44)+1+44; // including null
 		fputc ('\"', stdout);
 		printf("%s", (const char *)YYCURSOR);
 		fputc ('\"', stdout);
-		YYCURSOR+=len+1;
+		YYCURSOR+=len;
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			if((flags[flags_index]&0x03)!=1) // either in array or is a val
@@ -918,7 +918,7 @@ loop: // label for looping within the lexxer
 	}
 
 	[\xbf] { // ION unknown string length
-		u32 len = strlen((const char *)YYCURSOR); // including null
+		u32 len = strlen((const char *)YYCURSOR+44)+44; // including null
 		*out = '\"';
 		out++;
 		memcpy(out, YYCURSOR, len);
