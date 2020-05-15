@@ -87,9 +87,9 @@ typedef struct context_s{
 } Context;
 
 static sqlite3 *fdb;
-const u8 *ION_NULL_VAL = (const u8 *)"null";
-const u8 *ION_TRUE_VAL = (const u8 *)"true";
-const u8 *ION_FALSE_VAL = (const u8 *)"false";
+u8 *ION_NULL_VAL = (u8 *)"null";
+u8 *ION_TRUE_VAL = (u8 *)"true";
+u8 *ION_FALSE_VAL = (u8 *)"false";
 
 
 /* function prototypes */
@@ -103,6 +103,7 @@ static void
 save_variable(u8 *start, u64 len, s64 val);
 static void
 garbage_collect(void);
+static void lex_skipVal(const u8 **YYCURSORx);
 
 
 //~ static s32

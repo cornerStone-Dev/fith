@@ -86,10 +86,10 @@ ION_getValLen(Data val, u32 type)
 		val_length=9;
 		break;
 		case 1:
-		if(val.i==1){
-			val_length=1;
-		} else {
-		val_length= 9-(__builtin_clzl((u64)val.i)/8);}
+		//if(val.i==1){
+			//val_length=1;
+		//} else {
+		val_length= 9-(__builtin_clzl((((u64)val.i)&0xFFFFFFFFFFFFFFFE))/8);//}
 		break;
 		case 2:
 		val_length=strlen((const char *)val.s)+1;
@@ -355,7 +355,7 @@ ION_appVal(const u8 *input, Data val, u32 type, u32 fson_length)
 	val_length = ION_getValLen(val, type);
 	// allocate new buffer
 	//buff = malloc(fson_length+val_length);
-	buff = realloc(input, fson_length+val_length);
+	buff = realloc((u8*)input, fson_length+val_length);
 	buffp = buff+4;
 	if(buff!=input)
 	{
@@ -385,50 +385,80 @@ ION_appVal(const u8 *input, Data val, u32 type, u32 fson_length)
 
 // types 0=float 1=int 2=string 3=ion
 static u8 *
-ION_newVal(const u8 *input, const u8 *insert_location, Data val, u32 type)
+ION_newValInsert(const u8 *input, const u8 *insert_location, Data val, u32 type)
 {
 	const u8 *cursor = input;
 	u8 *buff;
 	u8 *buffp;
-	u8 *endp;
 	u32 fson_length;
 	u32 val_length;
-	u32 insert_offset=insert_location-input;
-	//printf("Array append!\n" );
+	u32 key_length;
+	
 	fson_length = ION_getLen(input);
 	cursor+=4;
 	// get length of val
 	val_length = ION_getValLen(val, type);
 	// allocate new buffer
-	//buff = malloc(fson_length+val_length);
-	buff = realloc(input, fson_length+val_length);
+	buff = malloc(fson_length+val_length);
 	buffp = buff+4;
-	if(buff!=input)
-	{
-		
-		//printf("attempting to add to an Object NEW BUFF!!!\n" );
-		//memcpy(buffp, cursor, insert_location-cursor); //copy over begining
-		insert_location = buff+insert_offset;
-	}
-	buffp+=(insert_offset-4);
-	// end first
-	endp=buffp+val_length;
-	memcpy(endp, insert_location, fson_length-(insert_offset)); //copy ending
-	// done with end
+	
+	//printf("attempting to add a value to an Object!!!\n");
+	memcpy(buffp, cursor, insert_location-cursor); //copy over begining
+	buffp+=(insert_location-cursor);
+	// make insert
 	ION_writeVal(&buffp, val, type, val_length);
-	//copy ending done above
-	buffp+=(fson_length-(insert_offset));
+	//copy ending
+	memcpy(buffp, insert_location, fson_length-(insert_location-input)); 
+	buffp+=(fson_length-(insert_location-input));
 	fson_length = buffp - buff; // get length
 	//length +=3;
 	//length /=4;
 	buff[0] = ((fson_length&0x00000000FF000000)>>24)|0x80;
-	//printf("header,%d\n", buff[0]);
 	buff[1] = (fson_length&0x0000000000FF0000)>>16;
 	buff[2] = (fson_length&0x000000000000FF00)>>8;
 	buff[3] = fson_length&0xFF;
+	
 	return buff;
 }
 
+
+// need to skip over old value for copy
+static u8 *
+ION_newValOverWrite(const u8 *input, const u8 *insert_location, Data val, u32 type)
+{
+	const u8 *cursor = input;
+	u8 *buff;
+	u8 *buffp;
+	u32 fson_length;
+	u32 val_length;
+	u32 key_length;
+	
+	fson_length = ION_getLen(input);
+	cursor+=4;
+	// get length of val
+	val_length = ION_getValLen(val, type);
+	// allocate new buffer
+	buff = malloc(fson_length+val_length);
+	buffp = buff+4;
+	
+	//printf("attempting to add a value to an Object!!!\n");
+	memcpy(buffp, cursor, insert_location-cursor); //copy over begining
+	buffp+=(insert_location-cursor);
+	ION_writeVal(&buffp, val, type, val_length);
+	// skip over value we are replacing
+	lex_skipVal(&insert_location);
+	memcpy(buffp, insert_location, fson_length-(insert_location-input)); //copy ending
+	buffp+=(fson_length-(insert_location-input));
+	fson_length = buffp - buff; // get length
+	//length +=3;
+	//length /=4;
+	buff[0] = ((fson_length&0x00000000FF000000)>>24)|0x80;
+	buff[1] = (fson_length&0x0000000000FF0000)>>16;
+	buff[2] = (fson_length&0x000000000000FF00)>>8;
+	buff[3] = fson_length&0xFF;
+	
+	return buff;
+}
 
 // types 0=float 1=int 2=string 3=ion
 static u8 *

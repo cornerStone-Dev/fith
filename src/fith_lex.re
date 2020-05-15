@@ -368,104 +368,255 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 
-	"ion-set-i" { // need to write the path
+	"ion-set-d" { // need to write the path
 		// set string function for ion objects
 		// if path is object, does not exist, then create it
 		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments... int ionObject 'path'
+		// arguments...[index]? int ionObject 'path'
+		//                  -2   -1       =     +1
 		STACK_CHECK(-3)
+		DECREMENT_STACK
 		DECREMENT_STACK
 		u32 path_len;
 		u32 fson_length;
 		s32 search_res;
-		u8 *path = c->stk->s;
-		const u8 *YYCURSOR = (c->stk-1)->s+4;
+		u8 *path = (c->stk+1)->s;
+		const u8 *fson_start = c->stk->s;
+		const u8 *fson_cursor = c->stk->s+4;
+		Data insert_val = *(c->stk-1);
 		
+		// handels special case of append at top level
 		if(*path == '[')
 		{
 			if(*(path+1)== '#')
 			{
-				if(*YYCURSOR != ION_ARR_START)
+				if(*fson_cursor != ION_ARR_START)
 				{
-					printf("ERROR lex_findPath: not a ION Array, %d.\n",*YYCURSOR);
+					printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
 					return 0;
 				}
-				path++;
-				YYCURSOR++;
-				fson_length = ION_getLen((c->stk-1)->s);
-				YYCURSOR = (c->stk-1)->s+fson_length;
-				(c->stk-2)->s = ION_appVal((c->stk-1)->s, *(c->stk-2), 1, fson_length);
-				DECREMENT_STACK
+				fson_length = ION_getLen(fson_start);
+				(c->stk-1)->s = ION_appVal(fson_start, insert_val, 0, fson_length);
 				goto loop;
 			} else {
-				goto process_array;
+				goto process_array0;
 			}
 		}
 		
-		move_on2:
+		move_on0:
 		if(*path == '.') // we are looking for a key
 		{
-			if(*YYCURSOR != ION_OBJ_START)
+			if(*fson_cursor != ION_OBJ_START)
 			{
 				printf("ERROR lex_findPath: not a ION Obj.\n");
 				return 0;
 			}
 			path++;
-			YYCURSOR++;
+			fson_cursor++;
 			path_len = getPathLen(path);
 			//printf("lex_searchObj.%s\n", path);
-			search_res = lex_searchObj(&YYCURSOR, path, path_len);
+			search_res = lex_searchObj(&fson_cursor, path, path_len);
 			path+=path_len;
 			if ( (search_res==0) && (*path!=0) )
 			{
 				// success and more path to go through
-				goto move_on2;
-			}
+				goto move_on0;
+			} else
 			if ( (search_res==0) && (*path==0) )
 			{
 				// success and NO more path to go through
-				// done YYCURSOR points at target value
-			}
+				// done fson_cursor points at target value
+				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 0);
+			} else
 			if ( (search_res==1) && (*path!=0) )
 			{
 				// path not found AND path not complete
 				// failure case, no set is possible
 				printf("Key not found in path. More path left unread.\n");
 				goto loop;
-			}
+			} else
 			if ( (search_res==1) && (*path==0) )
 			{
 				// path not found AND path is complete
 				// we now need to insert key and value pair
 				path-=path_len;
-				(c->stk-2)->s = ION_newKeyVal((c->stk-1)->s, YYCURSOR, *(c->stk-2), 2, path);
+				(c->stk-1)->s = ION_newKeyVal(fson_start, fson_cursor, insert_val, 0, path);
 			}
 		} else if (*path == '[') {
-			process_array:
-			if(*YYCURSOR != ION_ARR_START)
+			process_array0:
+			if(*fson_cursor != ION_ARR_START)
 			{
-				printf("ERROR lex_findPath: not a ION Array, %d.\n",*YYCURSOR);
+				printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
 				return 0;
 			}
 			path++;
-			YYCURSOR++;
-			lex_searchArray(&YYCURSOR, &path, c);
-			(c->stk-2)->s = ION_newVal((c->stk-1)->s, YYCURSOR, *(c->stk-2), 1);
+			fson_cursor++;
+			path_len = getPathLen(path);
+			search_res = lex_searchArray(&fson_cursor, path, path_len, c);
+			// modifies stack pointer
+			path+=path_len;
+			if ( (search_res==0) && (*path!=0) )
+			{
+				// success and more path to go through
+				goto move_on0;
+			} else
+			if ( (search_res==0) && (*path==0) )
+			{
+				// success and NO more path to go through
+				// done fson_cursor points at target value
+				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 0);
+			} else
+			if ( (search_res>0) && (*path!=0) )
+			{
+				// path not found or path is pecial ending AND path not complete
+				// failure case, no set is possible
+				printf("Error: Key not found in path. More path left unread.\n");
+				goto loop;
+			} else
+			if ( (search_res==1) && (*path==0) )
+			{
+				// path not found AND path is complete
+				// we now need to insert key and value pair
+				printf("Error: Index not found, no insert made.\n");
+				goto loop;
+			} else
+			if ( (search_res==2) && (*path==0) )
+			{
+				// path '#' or '?' AND path is complete
+				// handel only '#' for now.
+				// we now need to insert key and value pair
+				(c->stk-1)->s = ION_newValInsert(fson_start, fson_cursor, insert_val, 0);
+			}
 		} else {
 			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
 			return 0;
 		}
-		//~ u8 *value = (u8 *)lex_findPath((c->stk-1)->s+4, c->stk->s, c);
-		//~ // return pointer into ION. If End obj or End Array then nothing found.
-		//~ if (*value == ION_OBJ_END)
-		//~ {
-			//~ // create new ion with additional item
-			//~ c->stk->s = (u8*)strrchr((const char *)c->stk->s, '.')+1;
-			//~ (c->stk-2)->s = ION_newVal((c->stk-1)->s, value, *(c->stk-2), 2, c->stk->s);
-		//~ }
-		//*(c->stk-1) = lex_returnVal(value);
-		//c->stk--;
+		goto loop;
+	}
+
+	"ion-set-i" { // need to write the path
+		// set string function for ion objects
+		// if path is object, does not exist, then create it
+		// if path is an array, fail if past bounds. Needs append operator.
+		// arguments...[index]? int ionObject 'path'
+		//                  -2   -1       =     +1
+		STACK_CHECK(-3)
 		DECREMENT_STACK
+		DECREMENT_STACK
+		u32 path_len;
+		u32 fson_length;
+		s32 search_res;
+		u8 *path = (c->stk+1)->s;
+		const u8 *fson_start = c->stk->s;
+		const u8 *fson_cursor = c->stk->s+4;
+		Data insert_val = *(c->stk-1);
+		
+		// handels special case of append at top level
+		if(*path == '[')
+		{
+			if(*(path+1)== '#')
+			{
+				if(*fson_cursor != ION_ARR_START)
+				{
+					printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
+					return 0;
+				}
+				fson_length = ION_getLen(fson_start);
+				(c->stk-1)->s = ION_appVal(fson_start, insert_val, 1, fson_length);
+				goto loop;
+			} else {
+				goto process_array1;
+			}
+		}
+		
+		move_on1:
+		if(*path == '.') // we are looking for a key
+		{
+			if(*fson_cursor != ION_OBJ_START)
+			{
+				printf("ERROR lex_findPath: not a ION Obj.\n");
+				return 0;
+			}
+			path++;
+			fson_cursor++;
+			path_len = getPathLen(path);
+			//printf("lex_searchObj.%s\n", path);
+			search_res = lex_searchObj(&fson_cursor, path, path_len);
+			path+=path_len;
+			if ( (search_res==0) && (*path!=0) )
+			{
+				// success and more path to go through
+				goto move_on1;
+			} else
+			if ( (search_res==0) && (*path==0) )
+			{
+				// success and NO more path to go through
+				// done fson_cursor points at target value
+				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 1);
+			} else
+			if ( (search_res==1) && (*path!=0) )
+			{
+				// path not found AND path not complete
+				// failure case, no set is possible
+				printf("Key not found in path. More path left unread.\n");
+				goto loop;
+			} else
+			if ( (search_res==1) && (*path==0) )
+			{
+				// path not found AND path is complete
+				// we now need to insert key and value pair
+				path-=path_len;
+				(c->stk-1)->s = ION_newKeyVal(fson_start, fson_cursor, insert_val, 1, path);
+			}
+		} else if (*path == '[') {
+			process_array1:
+			if(*fson_cursor != ION_ARR_START)
+			{
+				printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
+				return 0;
+			}
+			path++;
+			fson_cursor++;
+			path_len = getPathLen(path);
+			search_res = lex_searchArray(&fson_cursor, path, path_len, c);
+			// modifies stack pointer
+			path+=path_len;
+			if ( (search_res==0) && (*path!=0) )
+			{
+				// success and more path to go through
+				goto move_on1;
+			} else
+			if ( (search_res==0) && (*path==0) )
+			{
+				// success and NO more path to go through
+				// done fson_cursor points at target value
+				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 1);
+			} else
+			if ( (search_res>0) && (*path!=0) )
+			{
+				// path not found or path is pecial ending AND path not complete
+				// failure case, no set is possible
+				printf("Error: Key not found in path. More path left unread.\n");
+				goto loop;
+			} else
+			if ( (search_res==1) && (*path==0) )
+			{
+				// path not found AND path is complete
+				// we now need to insert key and value pair
+				printf("Error: Index not found, no insert made.\n");
+				goto loop;
+			} else
+			if ( (search_res==2) && (*path==0) )
+			{
+				// path '#' or '?' AND path is complete
+				// handel only '#' for now.
+				// we now need to insert key and value pair
+				(c->stk-1)->s = ION_newValInsert(fson_start, fson_cursor, insert_val, 1);
+			}
+		} else {
+			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
+			return 0;
+		}
 		goto loop;
 	}
 
@@ -473,78 +624,254 @@ loop: // label for looping within the lexxer
 		// set string function for ion objects
 		// if path is object, does not exist, then create it
 		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments... string ionObject 'path'
+		// arguments...[index]? str ionObject 'path'
+		//                  -2   -1       =     +1
 		STACK_CHECK(-3)
 		DECREMENT_STACK
+		DECREMENT_STACK
 		u32 path_len;
+		u32 fson_length;
 		s32 search_res;
-		u8 *path = c->stk->s;
-		const u8 *YYCURSOR = (c->stk-1)->s+4;
-		move_on:
+		u8 *path = (c->stk+1)->s;
+		const u8 *fson_start = c->stk->s;
+		const u8 *fson_cursor = c->stk->s+4;
+		Data insert_val = *(c->stk-1);
+		
+		// handels special case of append at top level
+		if(*path == '[')
+		{
+			if(*(path+1)== '#')
+			{
+				if(*fson_cursor != ION_ARR_START)
+				{
+					printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
+					return 0;
+				}
+				fson_length = ION_getLen(fson_start);
+				(c->stk-1)->s = ION_appVal(fson_start, insert_val, 2, fson_length);
+				goto loop;
+			} else {
+				goto process_array2;
+			}
+		}
+		
+		move_on2:
 		if(*path == '.') // we are looking for a key
 		{
-			if(*YYCURSOR != ION_OBJ_START)
+			if(*fson_cursor != ION_OBJ_START)
 			{
 				printf("ERROR lex_findPath: not a ION Obj.\n");
 				return 0;
 			}
 			path++;
-			YYCURSOR++;
+			fson_cursor++;
 			path_len = getPathLen(path);
 			//printf("lex_searchObj.%s\n", path);
-			search_res = lex_searchObj(&YYCURSOR, path, path_len);
+			search_res = lex_searchObj(&fson_cursor, path, path_len);
 			path+=path_len;
 			if ( (search_res==0) && (*path!=0) )
 			{
 				// success and more path to go through
-				goto move_on;
-			}
+				goto move_on2;
+			} else
 			if ( (search_res==0) && (*path==0) )
 			{
-				// success and more path to go through
-				// done YYCURSOR points at target value
-			}
+				// success and NO more path to go through
+				// done fson_cursor points at target value
+				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 2);
+			} else
 			if ( (search_res==1) && (*path!=0) )
 			{
 				// path not found AND path not complete
 				// failure case, no set is possible
 				printf("Key not found in path. More path left unread.\n");
 				goto loop;
-			}
+			} else
 			if ( (search_res==1) && (*path==0) )
 			{
 				// path not found AND path is complete
 				// we now need to insert key and value pair
 				path-=path_len;
-				(c->stk-2)->s = ION_newKeyVal((c->stk-1)->s, YYCURSOR, *(c->stk-2), 2, path);
+				(c->stk-1)->s = ION_newKeyVal(fson_start, fson_cursor, insert_val, 2, path);
 			}
 		} else if (*path == '[') {
-			if(*YYCURSOR != ION_ARR_START)
+			process_array2:
+			if(*fson_cursor != ION_ARR_START)
 			{
-				printf("ERROR lex_findPath: not a ION Array.\n");
+				printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
 				return 0;
 			}
 			path++;
-			YYCURSOR++;
-			lex_searchArray(&YYCURSOR, &path, c);
+			fson_cursor++;
+			path_len = getPathLen(path);
+			search_res = lex_searchArray(&fson_cursor, path, path_len, c);
+			// modifies stack pointer
+			path+=path_len;
+			if ( (search_res==0) && (*path!=0) )
+			{
+				// success and more path to go through
+				goto move_on2;
+			} else
+			if ( (search_res==0) && (*path==0) )
+			{
+				// success and NO more path to go through
+				// done fson_cursor points at target value
+				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 2);
+			} else
+			if ( (search_res>0) && (*path!=0) )
+			{
+				// path not found or path is pecial ending AND path not complete
+				// failure case, no set is possible
+				printf("Error: Key not found in path. More path left unread.\n");
+				goto loop;
+			} else
+			if ( (search_res==1) && (*path==0) )
+			{
+				// path not found AND path is complete
+				// we now need to insert key and value pair
+				printf("Error: Index not found, no insert made.\n");
+				goto loop;
+			} else
+			if ( (search_res==2) && (*path==0) )
+			{
+				// path '#' or '?' AND path is complete
+				// handel only '#' for now.
+				// we now need to insert key and value pair
+				(c->stk-1)->s = ION_newValInsert(fson_start, fson_cursor, insert_val, 2);
+			}
 		} else {
 			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
 			return 0;
 		}
-		//~ u8 *value = (u8 *)lex_findPath((c->stk-1)->s+4, c->stk->s, c);
-		//~ // return pointer into ION. If End obj or End Array then nothing found.
-		//~ if (*value == ION_OBJ_END)
-		//~ {
-			//~ // create new ion with additional item
-			//~ c->stk->s = (u8*)strrchr((const char *)c->stk->s, '.')+1;
-			//~ (c->stk-2)->s = ION_newVal((c->stk-1)->s, value, *(c->stk-2), 2, c->stk->s);
-		//~ }
-		//*(c->stk-1) = lex_returnVal(value);
-		//c->stk--;
-		DECREMENT_STACK
 		goto loop;
 	}
-	
+
+	"ion-set-o" { // need to write the path
+		// set string function for ion objects
+		// if path is object, does not exist, then create it
+		// if path is an array, fail if past bounds. Needs append operator.
+		// arguments...[index]? str ionObject 'path'
+		//                  -2   -1       =     +1
+		STACK_CHECK(-3)
+		DECREMENT_STACK
+		DECREMENT_STACK
+		u32 path_len;
+		u32 fson_length;
+		s32 search_res;
+		u8 *path = (c->stk+1)->s;
+		const u8 *fson_start = c->stk->s;
+		const u8 *fson_cursor = c->stk->s+4;
+		Data insert_val = *(c->stk-1);
+		
+		// handels special case of append at top level
+		if(*path == '[')
+		{
+			if(*(path+1)== '#')
+			{
+				if(*fson_cursor != ION_ARR_START)
+				{
+					printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
+					return 0;
+				}
+				fson_length = ION_getLen(fson_start);
+				(c->stk-1)->s = ION_appVal(fson_start, insert_val, 3, fson_length);
+				goto loop;
+			} else {
+				goto process_array3;
+			}
+		}
+		
+		move_on3:
+		if(*path == '.') // we are looking for a key
+		{
+			if(*fson_cursor != ION_OBJ_START)
+			{
+				printf("ERROR lex_findPath: not a ION Obj.\n");
+				return 0;
+			}
+			path++;
+			fson_cursor++;
+			path_len = getPathLen(path);
+			//printf("lex_searchObj.%s\n", path);
+			search_res = lex_searchObj(&fson_cursor, path, path_len);
+			path+=path_len;
+			if ( (search_res==0) && (*path!=0) )
+			{
+				// success and more path to go through
+				goto move_on3;
+			} else
+			if ( (search_res==0) && (*path==0) )
+			{
+				// success and NO more path to go through
+				// done fson_cursor points at target value
+				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 3);
+			} else
+			if ( (search_res==1) && (*path!=0) )
+			{
+				// path not found AND path not complete
+				// failure case, no set is possible
+				printf("Key not found in path. More path left unread.\n");
+				goto loop;
+			} else
+			if ( (search_res==1) && (*path==0) )
+			{
+				// path not found AND path is complete
+				// we now need to insert key and value pair
+				path-=path_len;
+				(c->stk-1)->s = ION_newKeyVal(fson_start, fson_cursor, insert_val, 3, path);
+			}
+		} else if (*path == '[') {
+			process_array3:
+			if(*fson_cursor != ION_ARR_START)
+			{
+				printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
+				return 0;
+			}
+			path++;
+			fson_cursor++;
+			path_len = getPathLen(path);
+			search_res = lex_searchArray(&fson_cursor, path, path_len, c);
+			// modifies stack pointer
+			path+=path_len;
+			if ( (search_res==0) && (*path!=0) )
+			{
+				// success and more path to go through
+				goto move_on3;
+			} else
+			if ( (search_res==0) && (*path==0) )
+			{
+				// success and NO more path to go through
+				// done fson_cursor points at target value
+				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 3);
+			} else
+			if ( (search_res>0) && (*path!=0) )
+			{
+				// path not found or path is pecial ending AND path not complete
+				// failure case, no set is possible
+				printf("Error: Key not found in path. More path left unread.\n");
+				goto loop;
+			} else
+			if ( (search_res==1) && (*path==0) )
+			{
+				// path not found AND path is complete
+				// we now need to insert key and value pair
+				printf("Error: Index not found, no insert made.\n");
+				goto loop;
+			} else
+			if ( (search_res==2) && (*path==0) )
+			{
+				// path '#' or '?' AND path is complete
+				// handel only '#' for now.
+				// we now need to insert key and value pair
+				(c->stk-1)->s = ION_newValInsert(fson_start, fson_cursor, insert_val, 3);
+			}
+		} else {
+			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
+			return 0;
+		}
+		goto loop;
+	}
+
 	"ion-get" {
 		// get function for ion objects
 		// arguments... ionObject 'path'

@@ -216,11 +216,21 @@ $jsonObj s2o p
 $jsonObj s2o '.type' ion-get p
  $jsonObj s2o '.age' ion-get . drop
 $jsonObj s2o '.height' ion-get f. drop
- $jsonObj s2o '.favs' ion-get dup p 'heelo' p 0 swap . '[]' ion-get p
+ $jsonObj s2o '.favs' ion-get dup p 0 swap . '[]' ion-get p
  $jsonObj s2o '.inBox' ion-get p
- $jsonObj s2o '.inBox' ion-get 'hammer' swap '.tool' ion-set-s p
+ $jsonObj s2o '.inBox' ion-get 'hammer' swap '.tool' ion-set-s dup p
 
--1 -05 -0xFF .
+ 'screw' swap '.tool' ion-set-s dup p .
+ 55 swap '.tool' ion-set-i dup p
+
+'[0,1,2,[0,1,2,3,4,5,6,7,8,9],4,5,6,7,8,9]' s2o dup p .
+3 swap 3 swap 55 swap '[][]' ion-set-i dup p
+3 swap 77 swap '[][#]' ion-set-i dup p
+3 swap 'hello' swap '[][#]' ion-set-s dup p
+3 swap 7.68 swap '[][#]' ion-set-d dup p
+2 swap '{"color":"green"}' s2o swap '[]' ion-set-o dup p
+
+
 
 \=$cart2[#].i
 

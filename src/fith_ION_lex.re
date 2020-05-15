@@ -266,6 +266,11 @@ loop: // label for looping within the lexxer
 		return retVal;
 	}
 
+	[\x87] { // ION Object END
+		retVal.s = ION_NULL_VAL;
+		return retVal;
+	}
+
 	[\x88] { // ION Array
 		cursor = YYCURSOR-1;
 		lex_skipArray(&YYCURSOR);
@@ -279,6 +284,11 @@ loop: // label for looping within the lexxer
 		buff[3] = length&0xFF;
 		memcpy(&buff[4], cursor, (YYCURSOR-cursor+4));
 		retVal.s = buff;
+		return retVal;
+	}
+
+	[\x89] { // ION Array END
+		retVal.s = ION_NULL_VAL;
 		return retVal;
 	}
 
@@ -335,6 +345,11 @@ static s32 lex_searchObj(const u8 **inputx, u8 *pathx, u32 path_len)
 	u32 i=0, isNullTerminated=0;
 	
 	while(1){
+		if(*YYCURSOR==ION_OBJ_END) // end of object found
+		{
+			*inputx = YYCURSOR;
+			return 1;
+		}
 		key_len = (*YYCURSOR) - ION_STRING01 +1;
 		if (key_len>45)
 		{
@@ -368,29 +383,23 @@ static s32 lex_searchObj(const u8 **inputx, u8 *pathx, u32 path_len)
 		YYCURSOR+= key_len+isNullTerminated; // skip past key
 		isNullTerminated=0;
 		lex_skipVal(&YYCURSOR); // skip value
-		if(*YYCURSOR==ION_OBJ_END) // end of object found
-		{
-			*inputx = YYCURSOR;
-			return 1;
-		}
 	}
 }
 
 // given an ION object, search for given path, ending with '.' '[' or '\0'
-static void lex_searchArray(const u8 **inputx, u8 **pathx, Context * c)
+static s32 lex_searchArray(const u8 **inputx, u8 *pathx, u32 path_len , Context * c)
 {                                    //
 	const u8 *YYCURSOR = *inputx;
-	u8 *path = *pathx;
+	u8 *path = pathx;
 	u32 target_index=0;
 	u32 array_index=0;
-	u32 path_len=0;
 	
 	// find length of this part of the path
-	while ( (path[path_len]!=0) && (path[path_len]!='[') && (path[path_len]!='.') )
-	{
-		path_len++;
-	}
-	*pathx = &path[path_len]; // move path forward
+	//~ while ( (path[path_len]!=0) && (path[path_len]!='[') && (path[path_len]!='.') )
+	//~ {
+		//~ path_len++;
+	//~ }
+	//~ *pathx = &path[path_len]; // move path forward
 	// closing bracket ']' is not needed
 	path_len--;
 	
@@ -409,9 +418,10 @@ static void lex_searchArray(const u8 **inputx, u8 **pathx, Context * c)
 	if (path_len==0)
 	{
 		// get top of stack
-		//printf("lex_searchArraypath_len==0\n");
+		
 		DECREMENT_STACK
 		target_index = (c->stk-1)->i;
+		printf("index==%d\n", target_index);
 		// use as index
 	} else if ( (*path == '?') || (*path == '#') ) {
 		// skiparray
@@ -420,7 +430,7 @@ static void lex_searchArray(const u8 **inputx, u8 **pathx, Context * c)
 		YYCURSOR--;
 		// return
 		*inputx = YYCURSOR;
-		return; // success
+		return 2; // success, special symbol
 	}
 	// we have an index
 	
@@ -428,14 +438,14 @@ static void lex_searchArray(const u8 **inputx, u8 **pathx, Context * c)
 		if(target_index == array_index)
 		{
 			*inputx = YYCURSOR;
-			return; // success
+			return 0; // success
 		}
 		array_index++;
 		lex_skipVal(&YYCURSOR); // skip value
 		if(*YYCURSOR==ION_ARR_END) // end of object found
 		{
-			*inputx = ION_NULL_VAL;
-			return; // nothing found
+			*inputx = YYCURSOR;
+			return 1; // nothing found
 		}
 	}
 
@@ -494,7 +504,9 @@ static const u8 * lex_findPath(const u8 *inputx, u8 *pathx, Context * c)
 			}
 			path++;
 			YYCURSOR++;
-			lex_searchArray(&YYCURSOR, &path, c);
+			path_len = getPathLen(path);
+			lex_searchArray(&YYCURSOR, path, path_len, c);
+			path+=path_len;
 		} else {
 			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
 			return 0;
