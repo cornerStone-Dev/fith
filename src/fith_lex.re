@@ -1,6 +1,7 @@
 /* fith compiler */
 /* PUBLIC DOMAIN */
 
+
 /*!max:re2c*/                        // directive that defines YYMAXFILL (unused)
 /*!re2c                              // start of re2c block
 	
@@ -37,7 +38,7 @@
 	dollar =     "$";
 	semi =     ";";
 	function =   "fn";
-	function_call = [a-zA-Z_][a-zA-Z_0-9?-]*;
+	function_call = [a-zA-Z_]([a-zA-Z_0-9?!#.[-]|"]")*;
 	function_call_addr = [a-zA-Z_][a-zA-Z_0-9?-]*"@";
 	function_definition = [a-zA-Z_][a-zA-Z_0-9?-]* ":";
 	var = "$" function_call; // push value on stack, if exists
@@ -372,17 +373,17 @@ loop: // label for looping within the lexxer
 		// set string function for ion objects
 		// if path is object, does not exist, then create it
 		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments...[index]? int ionObject 'path'
-		//                  -2   -1       =     +1
+		// arguments...[index]? float 'path' ionObject
+		//                  -2   -1    =     +1
 		STACK_CHECK(-3)
 		DECREMENT_STACK
 		DECREMENT_STACK
 		u32 path_len;
 		u32 fson_length;
 		s32 search_res;
-		u8 *path = (c->stk+1)->s;
-		const u8 *fson_start = c->stk->s;
-		const u8 *fson_cursor = c->stk->s+4;
+		u8 *path = c->stk->s;
+		const u8 *fson_start = (c->stk+1)->s;
+		const u8 *fson_cursor = (c->stk+1)->s+4;
 		Data insert_val = *(c->stk-1);
 		
 		// handels special case of append at top level
@@ -498,17 +499,17 @@ loop: // label for looping within the lexxer
 		// set string function for ion objects
 		// if path is object, does not exist, then create it
 		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments...[index]? int ionObject 'path'
-		//                  -2   -1       =     +1
+		// arguments...[index]? int 'path' ionObject
+		//                  -2   -1   =     +1
 		STACK_CHECK(-3)
 		DECREMENT_STACK
 		DECREMENT_STACK
 		u32 path_len;
 		u32 fson_length;
 		s32 search_res;
-		u8 *path = (c->stk+1)->s;
-		const u8 *fson_start = c->stk->s;
-		const u8 *fson_cursor = c->stk->s+4;
+		u8 *path = c->stk->s;
+		const u8 *fson_start = (c->stk+1)->s;
+		const u8 *fson_cursor = (c->stk+1)->s+4;
 		Data insert_val = *(c->stk-1);
 		
 		// handels special case of append at top level
@@ -624,17 +625,17 @@ loop: // label for looping within the lexxer
 		// set string function for ion objects
 		// if path is object, does not exist, then create it
 		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments...[index]? str ionObject 'path'
-		//                  -2   -1       =     +1
+		// arguments...[index]? str 'path' ionObject
+		//                  -2   -1   =     +1
 		STACK_CHECK(-3)
 		DECREMENT_STACK
 		DECREMENT_STACK
 		u32 path_len;
 		u32 fson_length;
 		s32 search_res;
-		u8 *path = (c->stk+1)->s;
-		const u8 *fson_start = c->stk->s;
-		const u8 *fson_cursor = c->stk->s+4;
+		u8 *path = c->stk->s;
+		const u8 *fson_start = (c->stk+1)->s;
+		const u8 *fson_cursor = (c->stk+1)->s+4;
 		Data insert_val = *(c->stk-1);
 		
 		// handels special case of append at top level
@@ -750,17 +751,17 @@ loop: // label for looping within the lexxer
 		// set string function for ion objects
 		// if path is object, does not exist, then create it
 		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments...[index]? str ionObject 'path'
-		//                  -2   -1       =     +1
+		// arguments...[index]? str 'path' ionObject
+		//                  -2   -1   =     +1
 		STACK_CHECK(-3)
 		DECREMENT_STACK
 		DECREMENT_STACK
 		u32 path_len;
 		u32 fson_length;
 		s32 search_res;
-		u8 *path = (c->stk+1)->s;
-		const u8 *fson_start = c->stk->s;
-		const u8 *fson_cursor = c->stk->s+4;
+		u8 *path = c->stk->s;
+		const u8 *fson_start = (c->stk+1)->s;
+		const u8 *fson_cursor = (c->stk+1)->s+4;
 		Data insert_val = *(c->stk-1);
 		
 		// handels special case of append at top level
@@ -874,10 +875,10 @@ loop: // label for looping within the lexxer
 
 	"ion-get" {
 		// get function for ion objects
-		// arguments... ionObject 'path'
+		// arguments... 'path' ionObject
 		STACK_CHECK(-2)
 		DECREMENT_STACK
-		u8 *value = (u8 *)lex_findPath((c->stk-1)->s+4, c->stk->s, c);
+		u8 *value = (u8 *)lex_findPath(c->stk->s+4, (c->stk-1)->s, c);
 		*(c->stk-1) = lex_returnVal(value);
 		//c->stk--;
 		goto loop;
@@ -1194,52 +1195,52 @@ loop: // label for looping within the lexxer
 	}
 
 	// new loop to go over values in an object or an array
-	"jeach" { // json is on top of the stack
-		// cstack where sql statement will be saved
-		(c->cstk+1)->s=0;
-		// begin json work
-		c->stk->i = fith_json_each((c->stk-1)->s, // json
-									(c->stk-1),       // value output
-									(sqlite3_stmt **)(c->cstk+1)); // sql
-		// check for early exit
-		if(c->stk->i==0){
-			YYCURSOR-=lex_if_else(&YYCURSOR, 3);
-			goto loop;
-		}
-		// save off data in control stack
-		// set up jump back
-		c->cstk->s = YYCURSOR;
-		c->cstk+=2;
-		goto loop;
-	}
+	//~ "jeach" { // json is on top of the stack
+		//~ // cstack where sql statement will be saved
+		//~ (c->cstk+1)->s=0;
+		//~ // begin json work
+		//~ c->stk->i = fith_json_each((c->stk-1)->s, // json
+									//~ (c->stk-1),       // value output
+									//~ (sqlite3_stmt **)(c->cstk+1)); // sql
+		//~ // check for early exit
+		//~ if(c->stk->i==0){
+			//~ YYCURSOR-=lex_if_else(&YYCURSOR, 3);
+			//~ goto loop;
+		//~ }
+		//~ // save off data in control stack
+		//~ // set up jump back
+		//~ c->cstk->s = YYCURSOR;
+		//~ c->cstk+=2;
+		//~ goto loop;
+	//~ }
 
-	"jdone" { // condition not based on data stack
-		// begin json work
-		(c->stk+1)->i = fith_json_each(0, // json
-									c->stk,       // value output
-									(sqlite3_stmt **)(c->cstk-1)); // sql
-		// 0 if done
-		if((c->stk+1)->i==0){
-			sqlite3_finalize((sqlite3_stmt *)(c->cstk-1)->s);
-			c->cstk-=2;
-		} else {
-			YYCURSOR = (c->cstk-2)->s;
-			INCREMENT_STACK
-		}
-		goto loop;
-	}
+	//~ "jdone" { // condition not based on data stack
+		//~ // begin json work
+		//~ (c->stk+1)->i = fith_json_each(0, // json
+									//~ c->stk,       // value output
+									//~ (sqlite3_stmt **)(c->cstk-1)); // sql
+		//~ // 0 if done
+		//~ if((c->stk+1)->i==0){
+			//~ sqlite3_finalize((sqlite3_stmt *)(c->cstk-1)->s);
+			//~ c->cstk-=2;
+		//~ } else {
+			//~ YYCURSOR = (c->cstk-2)->s;
+			//~ INCREMENT_STACK
+		//~ }
+		//~ goto loop;
+	//~ }
 	
-	"jsort" { // return sorted JSON array
+	//~ "jsort" { // return sorted JSON array
 
-		// begin json work
-		c->stk->i = fith_json_sort((c->stk-1)->s, // json
-									(c->stk-1));  // value output
-		// check for early exit
-		if(c->stk->i!=0){
-			printf("jsort error!!!\n");
-		}
-		goto loop;
-	}
+		//~ // begin json work
+		//~ c->stk->i = fith_json_sort((c->stk-1)->s, // json
+									//~ (c->stk-1));  // value output
+		//~ // check for early exit
+		//~ if(c->stk->i!=0){
+			//~ printf("jsort error!!!\n");
+		//~ }
+		//~ goto loop;
+	//~ }
 	
 	"sleep" {
 		DECREMENT_STACK
@@ -1297,11 +1298,6 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
-	"GC" {
-		garbage_collect();
-		goto loop;
-	}
-	
 	"array" {
 		// allocate array with padding for 7 byte header (memory log =1 byte)
 		(c->stk-1)->s = malloc(((c->stk-1)->i*8)+7);
@@ -1313,7 +1309,7 @@ loop: // label for looping within the lexxer
 	"sort" {
 		DECREMENT_STACK
 		if(c->stk-c->stk_start<c->stk->i){
-			printf("stack underflow [?] operator avoided!!!\n");
+			printf("stack underflow avoided!!!\n");
 			goto loop;
 		}
 		MERGE_SORT_s64((s64 *)(c->stk-c->stk->i), c->stk->i);
@@ -1321,7 +1317,10 @@ loop: // label for looping within the lexxer
 	}
 	
 	"random" {
-		sqlite3_randomness(8, &c->stk->i);
+		//sqlite3_randomness(8, &c->stk->i);
+		c->stk->i = (s64)( ((u64)((*(c->stk->s))+3)) * ((*(c->stk->s+1))+3) * ((*(c->stk->s+2))+3)
+		 * ((*(c->stk->s+3))+3) * ((*(c->stk->s+4))+3) * ((*(c->stk->s+5))+3)
+		  * ((*(c->stk->s+6))+3) * ((*(c->stk->s+7))+3) );
 		INCREMENT_STACK
 		goto loop;
 	}
@@ -1354,7 +1353,7 @@ loop: // label for looping within the lexxer
 		// save off value
 		c->stk->i=(c->stk-1)->i;
 		// get string
-		(c->stk-1)->s = logged_malloc(63,0, 0);
+		(c->stk-1)->s = heap_malloc(24);
 		sprintf((char *)(c->stk-1)->s, "%ld", c->stk->i);
 		goto loop;
 	}
@@ -1368,7 +1367,7 @@ loop: // label for looping within the lexxer
 		// save off value
 		c->stk->d=(c->stk-1)->d;
 		// get string
-		(c->stk-1)->s = logged_malloc(63,0, 0);
+		(c->stk-1)->s = heap_malloc(24);
 		sprintf((char *)(c->stk-1)->s, "%f", c->stk->d);
 		goto loop;
 	}
@@ -1388,60 +1387,6 @@ loop: // label for looping within the lexxer
 		c->stk->s = malloc(string_len*3);
 		lex_stringToFSON((c->stk-1)->s, c->stk->s);
 		(c->stk-1)->s = c->stk->s;
-		goto loop;
-	}
-
-	"json_extract" {
-		DECREMENT_STACK
-		(c->stk-1)->i = fith_json_extract((c->stk-1)->s,
-											c->stk->s,
-											(c->stk+1));
-		if ((c->stk-1)->i){
-			printf("json_extract error!!!\n");
-		}
-		(c->stk-1)->i = (c->stk+1)->i;
-		
-		goto loop;
-	}
-
-	"json_set_j" {
-		DECREMENT_STACK
-		DECREMENT_STACK
-		(c->stk-1)->s = fith_json_set_j((c->stk-1)->s,
-											c->stk->s,
-											(c->stk+1)->s);
-		goto loop;
-	}
-
-	"json_set_s" {
-		DECREMENT_STACK
-		DECREMENT_STACK
-		(c->stk-1)->s = fith_json_set_s((c->stk-1)->s,
-											c->stk->s,
-											(c->stk+1)->s);
-		goto loop;
-	}
-	
-	"json_set_i" {
-		DECREMENT_STACK
-		DECREMENT_STACK
-		(c->stk-1)->s = fith_json_set_i((c->stk-1)->s,
-											c->stk->s,
-											(c->stk+1)->i);
-		goto loop;
-	}
-	
-	"json_set_d" {
-		DECREMENT_STACK
-		DECREMENT_STACK
-		(c->stk-1)->s = fith_json_set_d((c->stk-1)->s,
-											c->stk->s,
-											(c->stk+1)->d);
-		goto loop;
-	}
-	
-	"json_array_len" {
-		(c->stk-1)->i = fith_json_array_length((c->stk-1)->s);
 		goto loop;
 	}
 	
@@ -1617,307 +1562,6 @@ loop: // label for looping within the lexxer
 		DECREMENT_STACK
 		// will try to insert unique name, if fails will update value only
 		save_variable(start, (YYCURSOR - start), c->stk->i);
-		goto loop;
-	}
-
-	var_get_json {
-		start+=1;
-		(c->stk+3)->i=1;
-		while((start[(c->stk+3)->i]!='.')&&(start[(c->stk+3)->i]!='[')){
-			(c->stk+3)->i++;
-		}
-		// (c->stk+3)->i is now the length
-		
-		// get variable value
-		(c->stk+2)->i = get_variable(start, (c->stk+3)->i, &(c->stk+1)->i);
-		if ((c->stk+2)->i==0){
-			printf("Cannot find variable name!!!");
-			print_code(start, (YYCURSOR - start));
-			fputc ('\n', stdout);
-			goto loop;
-		}
-		// check if this is an array
-		if(*(c->stk+1)->s == 0xFF) // regular array
-		{
-			(c->stk-1)->v = (Data *)((c->stk+1)->s+7+(8*(c->stk-1)->i));
-			(c->stk-1)->i = (c->stk-1)->v->i;
-			goto loop;
-		}
-		// need str ptr and length of search path
-		(c->stk+4)->s = &start[(c->stk+3)->i];
-		(c->stk+2)->i = *YYCURSOR; // save off ending
-		*YYCURSOR = 0; // null terminate
-		(c->stk+3)->i = fith_json_extract((c->stk+1)->s, // json
-											(c->stk+4)->s, // key
-											c->stk);   // value
-		if ((c->stk+3)->i){
-			printf("json_extract returned \"null\"\n");
-			c->stk->s = (u8*)ION_NULL_VAL;
-		}
-		*YYCURSOR = (c->stk+2)->i;
-		INCREMENT_STACK
-		goto loop;
-	}
-
-	var_assign_json_s {
-		start+=2;
-		DECREMENT_STACK
-		(c->stk+3)->i=1;
-		while((start[(c->stk+3)->i]!='.')&&(start[(c->stk+3)->i]!='[')){
-			(c->stk+3)->i++;
-		}
-		// (c->stk+3)->i is now the length
-		
-		// get variable value
-		(c->stk+2)->i = get_variable(start, (c->stk+3)->i, &(c->stk+1)->i);
-		if ((c->stk+2)->i==0){
-			// no variable exists yet, check start to determine
-			// if an array or an object should be created
-			if (start[(c->stk+3)->i]=='.'){
-				(c->stk+1)->s = (u8*)"\047{}"+1;
-			} else {
-				(c->stk+1)->s = (u8*)"\047[]"+1;
-			}
-		}
-		// need str ptr and length of search path
-		(c->stk+4)->s = &start[(c->stk+3)->i];
-		(c->stk+2)->i = *(YYCURSOR-2); // save off ending
-		*(YYCURSOR-2) = 0; // null terminate
-		// check for "[?]"
-		if ((*(YYCURSOR-4)=='?')&&(*(YYCURSOR-3)==']')&&(*(YYCURSOR-5)=='[')){
-			if(c->stk-c->stk_start<c->stk->i){
-				printf("stack underflow [?] operator avoided!!!\n");
-				goto loop;
-			}
-			*(YYCURSOR-4)='#';
-			(c->stk+5)->i=c->stk->i;
-			c->stk->s=(c->stk+1)->s;
-			for (u32 x = (c->stk+5)->i; x!=0; x--)
-			{
-				c->stk->s = fith_json_set_s_internal(c->stk->s,   // json
-														(c->stk+4)->s, // key
-														(c->stk-x)->s);    // value
-			}
-			// put qmark back
-			*(YYCURSOR-4)='?';
-			*(YYCURSOR-2) = (c->stk+2)->i;
-			// will try to insert unique name, if fails will update value only
-			save_variable(start, (c->stk+3)->i, c->stk->i);
-			// decrease stack, safety check above
-			c->stk-=(c->stk+5)->i;
-			goto loop;
-		} else {
-			
-			c->stk->s = fith_json_set_s_internal((c->stk+1)->s,   // json
-											(c->stk+4)->s, // key
-											c->stk->s);    // value
-		}
-		*(YYCURSOR-2) = (c->stk+2)->i;
-		// will try to insert unique name, if fails will update value only
-		save_variable(start, (c->stk+3)->i, c->stk->i);
-		goto loop;
-	}
-	
-	var_assign_json_j {
-		start+=2;
-		DECREMENT_STACK
-		(c->stk+3)->i=1;
-		while((start[(c->stk+3)->i]!='.')&&(start[(c->stk+3)->i]!='[')){
-			(c->stk+3)->i++;
-		}
-		// (c->stk+3)->i is now the length
-		
-		// get variable value
-		(c->stk+2)->i = get_variable(start, (c->stk+3)->i, &(c->stk+1)->i);
-		if ((c->stk+2)->i==0){
-			// no variable exists yet, check start to determine
-			// if an array or an object should be created
-			if (start[(c->stk+3)->i]=='.'){
-				(c->stk+1)->s = (u8*)"\047{}"+1;
-			} else {
-				(c->stk+1)->s = (u8*)"\047[]"+1;
-			}
-		}
-		// need str ptr and length of search path
-		(c->stk+4)->s = &start[(c->stk+3)->i];
-		(c->stk+2)->i = *(YYCURSOR-2); // save off ending
-		*(YYCURSOR-2) = 0; // null terminate
-		// check for "[?]"
-		if ((*(YYCURSOR-4)=='?')&&(*(YYCURSOR-3)==']')&&(*(YYCURSOR-5)=='[')){
-			if(c->stk-c->stk_start<c->stk->i){
-				printf("stack underflow [?] operator avoided!!!\n");
-				goto loop;
-			}
-			*(YYCURSOR-4)='#';
-			(c->stk+5)->i=c->stk->i;
-			c->stk->s=(c->stk+1)->s;
-			for (u32 x = (c->stk+5)->i; x!=0; x--)
-			{
-				c->stk->s = fith_json_set_j_internal(c->stk->s,   // json
-														(c->stk+4)->s, // key
-														(c->stk-x)->s);    // value
-			}
-			// put qmark back
-			*(YYCURSOR-4)='?';
-			*(YYCURSOR-2) = (c->stk+2)->i;
-			// will try to insert unique name, if fails will update value only
-			save_variable(start, (c->stk+3)->i, c->stk->i);
-			// decrease stack, safety check above
-			c->stk-=(c->stk+5)->i;
-			goto loop;
-		} else {
-			
-			c->stk->s = fith_json_set_j_internal((c->stk+1)->s,   // json
-											(c->stk+4)->s, // key
-											c->stk->s);    // value
-		}
-		*(YYCURSOR-2) = (c->stk+2)->i;
-		// will try to insert unique name, if fails will update value only
-		save_variable(start, (c->stk+3)->i, c->stk->i);
-		goto loop;
-	}
-	
-	var_assign_json_i {
-		start+=2;
-		DECREMENT_STACK
-		(c->stk+3)->i=1;
-		while((start[(c->stk+3)->i]!='.')&&(start[(c->stk+3)->i]!='[')){
-			(c->stk+3)->i++;
-		}
-		// (c->stk+3)->i is now the length
-		
-		// get variable value
-		(c->stk+2)->i = get_variable(start, (c->stk+3)->i, &(c->stk+1)->i);
-		if ((c->stk+2)->i==0){
-			// no variable exists yet, check start to determine
-			// if an array or an object should be created
-			if (start[(c->stk+3)->i]=='.'){
-				(c->stk+1)->s = (u8*)"\047{}"+1;
-			} else {
-				(c->stk+1)->s = (u8*)"\047[]"+1;
-			}
-		}
-		// need str ptr and length of search path
-		(c->stk+4)->s = &start[(c->stk+3)->i];
-		(c->stk+2)->i = *(YYCURSOR-2); // save off ending
-		*(YYCURSOR-2) = 0; // null terminate
-		// check for "[?]"
-		if ((*(YYCURSOR-4)=='?')&&(*(YYCURSOR-3)==']')&&(*(YYCURSOR-5)=='[')){
-			if(c->stk-c->stk_start<c->stk->i){
-				printf("stack underflow [?] operator avoided!!!\n");
-				goto loop;
-			}
-			*(YYCURSOR-4)='#';
-			(c->stk+5)->i=c->stk->i;
-			c->stk->s=(c->stk+1)->s;
-			for (u32 x = (c->stk+5)->i; x!=0; x--)
-			{
-				c->stk->s = fith_json_set_i_internal(c->stk->s,   // json
-														(c->stk+4)->s, // key
-														(c->stk-x)->i);    // value
-			}
-			// put qmark back
-			*(YYCURSOR-4)='?';
-			*(YYCURSOR-2) = (c->stk+2)->i;
-			// will try to insert unique name, if fails will update value only
-			save_variable(start, (c->stk+3)->i, c->stk->i);
-			// decrease stack, safety check above
-			c->stk-=(c->stk+5)->i;
-			goto loop;
-		} else {
-			//save_variable(start, (c->stk+3)->i, 0);
-			c->stk->s = fith_json_set_i_internal((c->stk+1)->s,   // json
-											(c->stk+4)->s, // key
-											c->stk->i);    // value
-		}
-		*(YYCURSOR-2) = (c->stk+2)->i;
-		// will try to insert unique name, if fails will update value only
-		//printf("%s\n", c->stk->s);
-		save_variable(start, (c->stk+3)->i, c->stk->i);
-		goto loop;
-	}
-	
-	var_assign_json_d {
-		start+=2;
-		DECREMENT_STACK
-		(c->stk+3)->i=1;
-		while((start[(c->stk+3)->i]!='.')&&(start[(c->stk+3)->i]!='[')){
-			(c->stk+3)->i++;
-		}
-		// (c->stk+3)->i is now the length
-		
-		// get variable value
-		(c->stk+2)->i = get_variable(start, (c->stk+3)->i, &(c->stk+1)->i);
-		if ((c->stk+2)->i==0){
-			// no variable exists yet, check start to determine
-			// if an array or an object should be created
-			if (start[(c->stk+3)->i]=='.'){
-				(c->stk+1)->s = (u8*)"\047{}"+1;
-			} else {
-				(c->stk+1)->s = (u8*)"\047[]"+1;
-			}
-		}
-		// need str ptr and length of search path
-		(c->stk+4)->s = &start[(c->stk+3)->i];
-		(c->stk+2)->i = *(YYCURSOR-2); // save off ending
-		*(YYCURSOR-2) = 0; // null terminate
-		// check for "[?]"
-		if ((*(YYCURSOR-4)=='?')&&(*(YYCURSOR-3)==']')&&(*(YYCURSOR-5)=='[')){
-			if(c->stk-c->stk_start<c->stk->i){
-				printf("stack underflow [?] operator avoided!!!\n");
-				goto loop;
-			}
-			*(YYCURSOR-4)='#';
-			(c->stk+5)->i=c->stk->i;
-			c->stk->s=(c->stk+1)->s;
-			for (u32 x = (c->stk+5)->i; x!=0; x--)
-			{
-				c->stk->s = fith_json_set_d_internal(c->stk->s,   // json
-														(c->stk+4)->s, // key
-														(c->stk-x)->d);    // value
-			}
-			// put qmark back
-			*(YYCURSOR-4)='?';
-			*(YYCURSOR-2) = (c->stk+2)->i;
-			// will try to insert unique name, if fails will update value only
-			save_variable(start, (c->stk+3)->i, c->stk->i);
-			// decrease stack, safety check above
-			c->stk-=(c->stk+5)->i;
-			goto loop;
-		} else {
-			
-			c->stk->s = fith_json_set_d_internal((c->stk+1)->s,   // json
-											(c->stk+4)->s, // key
-											c->stk->d);    // value
-		}
-		*(YYCURSOR-2) = (c->stk+2)->i;
-		// will try to insert unique name, if fails will update value only
-		save_variable(start, (c->stk+3)->i, c->stk->i);
-		goto loop;
-	}
-
-	var_assign_array {
-		start+=2;
-		DECREMENT_STACK
-		DECREMENT_STACK
-		// assign value into array c->stk->i=val, (c->stk+1)->i = index
-		(c->stk+4)->i=1;
-		while((start[(c->stk+4)->i]!='.')&&(start[(c->stk+4)->i]!='[')){
-			(c->stk+4)->i++;
-		}
-		// (c->stk+3)->i is now the length
-		// get variable value
-		(c->stk+3)->i = get_variable(start, (c->stk+4)->i, &(c->stk+2)->i);
-		if ((c->stk+3)->i==0){
-			printf("Cannot find variable name!!!");
-			print_code(start, (YYCURSOR - start));
-			fputc ('\n', stdout);
-			goto loop;
-		}
-		// variable value is in (c->stk+2), now move to address
-		(c->stk+3)->v = (Data *)((c->stk+2)->s+7+(8*(c->stk+1)->i));
-		// write value into address
-		(c->stk+3)->v->i = c->stk->i;
 		goto loop;
 	}
 

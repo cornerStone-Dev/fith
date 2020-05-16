@@ -17,10 +17,6 @@
 #include "std_types.h"
 #include "fith_ION.h"
 
-
-#include "../sqlite3/sqlite3.h"
-#include "../gen/sql3_macros.c"
-
 #define NDEBUG
 #define Parse_ENGINEALWAYSONSTACK
 
@@ -86,24 +82,20 @@ typedef struct context_s{
 	u8            is_inline;
 } Context;
 
-static sqlite3 *fdb;
 u8 *ION_NULL_VAL = (u8 *)"null";
 u8 *ION_TRUE_VAL = (u8 *)"true";
 u8 *ION_FALSE_VAL = (u8 *)"false";
 
 
 /* function prototypes */
-static void *
-logged_malloc(size_t bytes, u8 factor, u8 *ptr);
-static void *
-logged_malloc_block(size_t bytes);
 static void
 save_function_addr(u8 *start, u64 len, u8 *addr);
 static void
 save_variable(u8 *start, u64 len, s64 val);
 static void
-garbage_collect(void);
+garbage_collect(u64 last_requested_size);
 static void lex_skipVal(const u8 **YYCURSORx);
+static u32 ION_getLen(const u8 *input);
 
 
 //~ static s32
@@ -174,7 +166,6 @@ load_file(u8 *file_name, u8 as_function)
 	fileSize = ftell(pFile);
 	rewind(pFile);
 	// allocate memory to contain the whole file:
-	//buffer = logged_malloc_block(fileSize+2);
 	buffer = malloc(fileSize+2);
 	if (buffer == NULL) {fputs ("Memory error\n",stderr); exit (2);}
 	// copy the file into the buffer:
@@ -496,9 +487,6 @@ int main(int argc, char **argv)
 	varList.end=&varList.table[65535];
 	strBuff = stringBuffer;
 	
-	ptrs.p = malloc(4096);
-	ptrs.hw=511;
-	
 	var_data.v = malloc(4096);
 	var_data.hw=511;
 	
@@ -506,19 +494,6 @@ int main(int argc, char **argv)
 	heap_data.t=(128*1024*1)-1;
 	heap_data.cache=(u8*)5; // set to garbage
 	
-	sqlite3_initialize();
-	sqlite3_open(":memory:", &fdb);
-	
-	fdb_SETUP();
-	fdb_PREPARE();
-	
-	SQL3_SETUP(fdb, "PRAGMA journal_mode=OFF;");
-	//SQL3_SETUP(fdb, "CREATE TABLE fns(name TEXT PRIMARY KEY, addr INTEGER)WITHOUT ROWID;");
-	//SQL3_SETUP(fdb, "CREATE TABLE vars(name TEXT PRIMARY KEY, val INTEGER)WITHOUT ROWID;");
-	//SQL3_SETUP(fdb, "CREATE TABLE ptrs(addr INTEGER PRIMARY KEY);");
-	//SQL3_SETUP(fdb, "CREATE TABLE garb(bags INTEGER);"); // garbage to be collected
-	
-
 	u32 i=1;
 	if (argc > 1)
 	{

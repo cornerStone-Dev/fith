@@ -187,48 +187,48 @@ $sizeOfMatrix $sizeOfMatrix * . array =$matrix
 \GC
 '[0]' s2o dup p =$IONarray
 
-0
-begin
-	dup =$cart1[#].i
-	1 +
-	dup $sizeOfMatrix ==
-until
-drop
-$cart1 . 
-jeach  \first val on stack .
-	$cart1 
-	jeach 
-		 over * $IONarray '[#]' ion-set-i ( dup p ) =$IONarray \=$cart2[#].i \indexInc =$matrix[] \ $IONarray '[#]' ion-set-i ( dup p ) =$IONarray
-	jdone
-	drop \GC
-jdone
+\~ 0
+\~ begin
+	\~ dup =$cart1[#].i
+	\~ 1 +
+	\~ dup $sizeOfMatrix ==
+\~ until
+\~ drop
+\~ $cart1 . 
+\~ jeach  \first val on stack .
+	\~ $cart1 
+	\~ jeach 
+		 \~ over * $IONarray '[#]' ion-set-i ( dup p ) =$IONarray \=$cart2[#].i \indexInc =$matrix[] \ $IONarray '[#]' ion-set-i ( dup p ) =$IONarray
+	\~ jdone
+	\~ drop \GC
+\~ jdone
 
-\'hello' praw
-55  =$jsonObj.age.i
-1  =$jsonObj.dogs.i
-7.864 =$jsonObj.height.d
-'["yoyo","hello motto"]' =$jsonObj.favs.j
-'{"circuit":"breaker","pencil":"broken"}' =$jsonObj.inBox.j
-'special' =$jsonObj.type.s $jsonObj p
+\~ \'hello' praw
+\~ 55  =$jsonObj.age.i
+\~ 1  =$jsonObj.dogs.i
+\~ 7.864 =$jsonObj.height.d
+\~ '["yoyo","hello motto"]' =$jsonObj.favs.j
+\~ '{"circuit":"breaker","pencil":"broken"}' =$jsonObj.inBox.j
+\~ 'special' =$jsonObj.type.s $jsonObj p
 
-$jsonObj s2o p
-\$jsonObj s2o search
-$jsonObj s2o '.type' ion-get p
- $jsonObj s2o '.age' ion-get . drop
-$jsonObj s2o '.height' ion-get f. drop
- $jsonObj s2o '.favs' ion-get dup p 0 swap . '[]' ion-get p
- $jsonObj s2o '.inBox' ion-get p
- $jsonObj s2o '.inBox' ion-get 'hammer' swap '.tool' ion-set-s dup p
+\~ $jsonObj s2o p
+\~ \$jsonObj s2o search
+\~ $jsonObj s2o '.type' ion-get p
+ \~ $jsonObj s2o '.age' ion-get . drop
+\~ $jsonObj s2o '.height' ion-get f. drop
+ \~ $jsonObj s2o '.favs' ion-get dup p 0 swap . '[]' ion-get p
+ \~ $jsonObj s2o '.inBox' ion-get p
+ \~ $jsonObj s2o '.inBox' ion-get 'hammer' swap '.tool' ion-set-s dup p
 
- 'screw' swap '.tool' ion-set-s dup p .
- 55 swap '.tool' ion-set-i dup p
+ \~ 'screw' swap '.tool' ion-set-s dup p .
+ \~ 55 swap '.tool' ion-set-i dup p
 
-'[0,1,2,[0,1,2,3,4,5,6,7,8,9],4,5,6,7,8,9]' s2o dup p .
-3 swap 3 swap 55 swap '[][]' ion-set-i dup p
-3 swap 77 swap '[][#]' ion-set-i dup p
-3 swap 'hello' swap '[][#]' ion-set-s dup p
-3 swap 7.68 swap '[][#]' ion-set-d dup p
-2 swap '{"color":"green"}' s2o swap '[]' ion-set-o dup p
+'[0,1,2,[0,1,2,3,4,5,6,7,8,9],4,5,6,7,8,9]' s2o dup p =$IONarraytest
+3 3 55 '[][]' $IONarraytest ion-set-i dup p =$IONarraytest
+3 77 '[][#]' $IONarraytest ion-set-i dup p =$IONarraytest
+3 'hello' '[][#]' $IONarraytest ion-set-s dup p =$IONarraytest
+3 7.68 '[][#]' $IONarraytest ion-set-d dup p =$IONarraytest
+2 '{"color":"green"}' s2o '[]' $IONarraytest ion-set-o dup p =$IONarraytest
 
 
 

@@ -89,7 +89,7 @@ ION_getValLen(Data val, u32 type)
 		//if(val.i==1){
 			//val_length=1;
 		//} else {
-		val_length= 9-(__builtin_clzl((((u64)val.i)&0xFFFFFFFFFFFFFFFE))/8);//}
+		val_length= 9-((__builtin_clzl((((u64)val.i)&0xFFFFFFFFFFFFFFFE)))>>3);//}
 		break;
 		case 2:
 		val_length=strlen((const char *)val.s)+1;
