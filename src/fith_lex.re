@@ -1384,7 +1384,7 @@ loop: // label for looping within the lexxer
 	
 	"s2o" {
 		u32 string_len = strlen((const char *)(c->stk-1)->s);
-		c->stk->s = malloc(string_len*3);
+		c->stk->s = heap_malloc(string_len*3);
 		lex_stringToFSON((c->stk-1)->s, c->stk->s);
 		(c->stk-1)->s = c->stk->s;
 		goto loop;

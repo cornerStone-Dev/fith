@@ -502,7 +502,7 @@ MERGE_SORT_s64(s64 *dst, const size_t size) {
 		return;
 	}
 
-	newdst = malloc(size/2);
+	newdst = malloc((size/2)*sizeof(s64));
 
 	MERGE_SORT_RECURSIVE_s64(newdst, dst, size);
 	free(newdst);

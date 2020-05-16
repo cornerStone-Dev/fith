@@ -355,7 +355,7 @@ ION_appVal(const u8 *input, Data val, u32 type, u32 fson_length)
 	val_length = ION_getValLen(val, type);
 	// allocate new buffer
 	//buff = malloc(fson_length+val_length);
-	buff = realloc((u8*)input, fson_length+val_length);
+	buff = heap_realloc((u8*)input, fson_length+val_length);
 	buffp = buff+4;
 	if(buff!=input)
 	{
@@ -399,7 +399,7 @@ ION_newValInsert(const u8 *input, const u8 *insert_location, Data val, u32 type)
 	// get length of val
 	val_length = ION_getValLen(val, type);
 	// allocate new buffer
-	buff = malloc(fson_length+val_length);
+	buff = heap_malloc(fson_length+val_length);
 	buffp = buff+4;
 	
 	//printf("attempting to add a value to an Object!!!\n");
@@ -438,7 +438,7 @@ ION_newValOverWrite(const u8 *input, const u8 *insert_location, Data val, u32 ty
 	// get length of val
 	val_length = ION_getValLen(val, type);
 	// allocate new buffer
-	buff = malloc(fson_length+val_length);
+	buff = heap_malloc(fson_length+val_length);
 	buffp = buff+4;
 	
 	//printf("attempting to add a value to an Object!!!\n");
@@ -479,7 +479,7 @@ ION_newKeyVal(const u8 *input, const u8 *insert_location, Data val, u32 type, co
 	// get length of val
 	val_length = ION_getValLen(val, type);
 	// allocate new buffer
-	buff = malloc(fson_length+val_length+key_length);
+	buff = heap_malloc(fson_length+val_length+key_length);
 	buffp = buff+4;
 	
 	printf("attempting to add to an Object!!!, %s\n",path_ending );

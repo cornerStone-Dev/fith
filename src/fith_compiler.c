@@ -96,6 +96,8 @@ static void
 garbage_collect(u64 last_requested_size);
 static void lex_skipVal(const u8 **YYCURSORx);
 static u32 ION_getLen(const u8 *input);
+static void *
+heap_malloc(size_t bytes) __attribute__((malloc,alloc_size(1)));
 
 
 //~ static s32

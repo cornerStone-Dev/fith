@@ -256,7 +256,7 @@ loop: // label for looping within the lexxer
 		length = YYCURSOR-cursor+4; // get length
 		//length +=3;
 		//length /=4;
-		buff = malloc(length);
+		buff = heap_malloc(length);
 		buff[0] = ((length&0x00000000FF000000)>>24)|0x80;
 		buff[1] = (length&0x0000000000FF0000)>>16;
 		buff[2] = (length&0x000000000000FF00)>>8;
@@ -277,7 +277,7 @@ loop: // label for looping within the lexxer
 		length = YYCURSOR-cursor+4; // get length
 		//length +=3;
 		//length /=4;
-		buff = malloc(length);
+		buff = heap_malloc(length);
 		buff[0] = ((length&0x00000000FF000000)>>24)|0x80;
 		buff[1] = (length&0x0000000000FF0000)>>16;
 		buff[2] = (length&0x000000000000FF00)>>8;
@@ -306,7 +306,7 @@ loop: // label for looping within the lexxer
 
 	[\x93-\xbe] { // ION Strings
 		length =((*(YYCURSOR-1))-0x92);
-		buff = malloc(length+1);
+		buff = heap_malloc(length+1);
 		memcpy(buff, YYCURSOR, length);
 		buff[length]=0;
 		retVal.s = buff;
@@ -315,7 +315,7 @@ loop: // label for looping within the lexxer
 
 	[\xbf] { // ION unknown string length
 		length=strlen((const char *)YYCURSOR+44)+1+44;
-		buff = malloc(length);
+		buff = heap_malloc(length);
 		memcpy(buff, YYCURSOR, length);
 		retVal.s = buff;
 		return retVal;
