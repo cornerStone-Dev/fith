@@ -421,8 +421,8 @@ if (c->stk<c->stk_end) \
 { printf("stack overflow!!!\n"); }
 
 #define STACK_CHECK(x) \
-if ( (((c->stk - c->stk_start)+(x))<0)){printf("stack underflow!!!\n");} \
-else if ((((c->stk - c->stk_start)+(x))>374)){printf("stack overflow!!!\n");}
+if ( (((c->stk - c->stk_start)+(x))<0)){printf("stack underflow!!!\n"); goto loop;} \
+else if ((((c->stk - c->stk_start)+(x))>374)){printf("stack overflow!!!\n"); goto loop;}
 
 
 #include "fith_avl.c"

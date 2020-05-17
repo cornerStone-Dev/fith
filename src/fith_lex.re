@@ -138,7 +138,7 @@ static int lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else) // YYCURSOR is d
 	/*const*/ u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
 	/*const*/ //u8 * start;
 	u32 num_ifs=0;
-	u32 num_je=0;
+	u32 num_funcs=0;
 	
 	YYCURSOR = *YYCURSOR_p;
 
@@ -161,11 +161,17 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	":" {
+		num_funcs++;
+		goto loop;
+	}
+	
 	";" {
-		if (is_else==2){
+		if ( (is_else==2) && (num_funcs==0) ){
 			*YYCURSOR_p = YYCURSOR;
 			return 0;
 		}
+		num_funcs--;
 		goto loop;
 	}
 	
@@ -191,19 +197,19 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
-	"jeach" {
-		num_je++;
-		goto loop;
-	}
+	//~ "jeach" {
+		//~ num_je++;
+		//~ goto loop;
+	//~ }
 	
-	"jdone" {
-		if ( (is_else==3) && (num_je==0) ){
-			*YYCURSOR_p = YYCURSOR;
-			return 0;
-		}
-		num_je--;
-		goto loop;
-	}
+	//~ "jdone" {
+		//~ if ( (is_else==3) && (num_je==0) ){
+			//~ *YYCURSOR_p = YYCURSOR;
+			//~ return 0;
+		//~ }
+		//~ num_je--;
+		//~ goto loop;
+	//~ }
 
 	*/                               // end of re2c block
 }
@@ -884,20 +890,104 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
-	//~ "search" {
-		//~ u8 *temp = (((c->stk-1)->s)+5);
-		//~ (c->stk+1)->s = "type";
-		//~ lex_searchObj(&temp, &((c->stk+1)->s));
-		//~ (c->stk+3)->i = *temp - 0x92;
-		//~ temp++;
-		//~ for(u32 i=0; i<(c->stk+3)->i; i++)
-		//~ {
-			//~ fputc(temp[i], stdout);
-		//~ }
-		//~ fputc('\n', stdout);
-		//~ goto loop;
-	//~ }
-	
+	"ion-each" {
+		// get function for ion objects
+		// arguments... ionObject anonFunc ion-each -- nothing
+		//              0          +1       
+		STACK_CHECK(-2)
+		c->stk-=2;
+		u8 *ionObject = c->stk->s+4;
+		u8 *func = (c->stk+1)->s;
+		if(*ionObject == ION_OBJ_START)
+		{
+			ionObject++;
+			if(*ionObject == ION_OBJ_END)
+			{
+				// empty 
+				goto loop;
+			}
+			// skip key
+			lex_skipVal((const u8 **)&ionObject);
+			// set flag for object
+			(c->cstk+2)->i=1;
+		} else if (*ionObject == ION_ARR_START){
+			ionObject++;
+			if(*ionObject == ION_ARR_END)
+			{
+				// empty 
+				goto loop;
+			}
+			// set flag for array
+			(c->cstk+2)->i=0;
+		} else {
+			printf("ERROR not an array or Object.\n");
+			goto loop;
+		}
+		// push value
+		*c->stk = lex_returnVal(ionObject);
+		c->stk++;
+		// skip value
+		lex_skipVal((const u8 **)&ionObject);
+		// push jump back
+		c->cstk->s = YYCURSOR;
+		// push where we are in object
+		(c->cstk+1)->s=ionObject;
+		(c->cstk+3)->s=func;
+		c->cstk+=4; 
+		// call **************
+		// save off return
+		c->cstk->s = (u8*)"ion-each$";
+		c->cstk++;
+		// jump to function
+		YYCURSOR = func;
+		goto loop;
+	}
+
+	"ion-each$" {
+		// ctrl stk... rtrnPtr ionPtr ionFlag anonFunc 
+		//              -4      -3     -2      -1
+		u8 *ionObject = (c->cstk-3)->s;
+		u8 *func = (c->cstk-1)->s;
+		s64 flags = (c->cstk-2)->i;
+		u8 *retPtr = (c->cstk-4)->s;
+		if(flags)
+		{
+			if(*ionObject == ION_OBJ_END)
+			{
+				// done 
+				c->cstk-=4;
+				// return address
+				YYCURSOR = retPtr;
+				goto loop;
+			}
+			// skip key
+			lex_skipVal((const u8 **)&ionObject);
+		} else {
+			if(*ionObject == ION_ARR_END)
+			{
+				// done 
+				c->cstk-=4;
+				// return address
+				YYCURSOR = retPtr;
+				goto loop;
+			}
+		}
+		// push value
+		*c->stk = lex_returnVal(ionObject);
+		INCREMENT_STACK
+		// skip value
+		lex_skipVal((const u8 **)&ionObject);
+		// save where we are in object
+		(c->cstk-3)->s =ionObject; 
+		// call **************
+		// save off return
+		c->cstk->s = (u8*)"ion-each$";
+		c->cstk++;
+		// jump to function
+		YYCURSOR = func;
+		goto loop;
+	}
+
 	"praw" {
 		DECREMENT_STACK
 		for (u8 *a = c->stk->s; (*a); a++)
@@ -909,8 +999,8 @@ loop: // label for looping within the lexxer
 			}
 		}
 		printf("\n");
-		//~ printf((const char *)c->stk->s);
-		//~ printf("\n");
+		//~ //printf((const char *)c->stk->s);
+		//~ //printf("\n");
 		u32 string_len = strlen((const char *)c->stk->s);
 		(c->stk+1)->s = malloc(string_len*3);
 		lex_FSONToString(c->stk->s, (c->stk+1)->s);

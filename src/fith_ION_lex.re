@@ -673,36 +673,10 @@ loop: // label for looping within the lexxer
 	}
 
 	[\x8a] { // ION float
-		Data dbl;
-		u64 tmp, res;
 		start++;
-		tmp=*start;
-		start++;
-		res = tmp<<56;
-		tmp=*start;
-		start++;
-		res += tmp<<48;
-		tmp=*start;
-		start++;
-		res += tmp<<40;
-		tmp=*start;
-		start++;
-		res += tmp<<32;
-		tmp=*start;
-		start++;
-		res += tmp<<24;
-		tmp=*start;
-		start++;
-		res += tmp<<16;
-		tmp=*start;
-		start++;
-		res += tmp<<8;
-		tmp=*start;
-		start++;
-		res += tmp;
+		f64 dbl = ION_toDouble(start);
 		YYCURSOR+=8;
-		dbl.i=(s64)res;
-		printf("%.3f",dbl.d);
+		printf("%.3f",dbl);
 		if( ((*YYCURSOR)!=ION_OBJ_END) && ((*YYCURSOR)!=ION_ARR_END) )
 		{
 			fputc (',', stdout);
@@ -876,37 +850,10 @@ loop: // label for looping within the lexxer
 	}
 
 	[\x8a] { // ION float
-		Data d;
-		u64 tmp, res;
-		
 		start++;
-		tmp=*start;
-		start++;
-		res = tmp<<56;
-		tmp=*start;
-		start++;
-		res += tmp<<48;
-		tmp=*start;
-		start++;
-		res += tmp<<40;
-		tmp=*start;
-		start++;
-		res += tmp<<32;
-		tmp=*start;
-		start++;
-		res += tmp<<24;
-		tmp=*start;
-		start++;
-		res += tmp<<16;
-		tmp=*start;
-		start++;
-		res += tmp<<8;
-		tmp=*start;
-		start++;
-		res += tmp;
+		f64 dbl = ION_toDouble(start);
 		YYCURSOR+=8;
-		d.i=(s64)res;
-		out += sprintf((char *)out, "%f",d.d);
+		out += sprintf((char *)out, "%f",dbl);
 		goto loop;
 	}
 

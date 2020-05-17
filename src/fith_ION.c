@@ -108,7 +108,7 @@ ION_writeInt(u8 **outx, s64 val)
 	u64 ionInt = (u64) val;
 	u8 *out = *outx;
 	s32 lz;
-	lz = __builtin_clzl(ionInt);
+	lz = __builtin_clzl(ionInt&0xFFFFFFFFFFFFFFFE);
 	if (lz==0)
 	{
 		// negative number
@@ -117,136 +117,29 @@ ION_writeInt(u8 **outx, s64 val)
 		// get absolute value
 		ionInt = (u64)labs(val);
 		// retake leading zeros
-		lz = __builtin_clzl(ionInt);
+		lz = __builtin_clzl(ionInt&0xFFFFFFFFFFFFFFFE);
 	}
 	lz/=8;
-	switch (lz){
-		case 0:
-		// 8 bytes of int
-		*out = ION_INT8;
+	if(lz<8)
+	{
+		*out = ION_INT8-lz;
 		out++;
-		*out = (ionInt&0xFF00000000000000)>>56;
-		out++;
-		*out = (ionInt&0x00FF000000000000)>>48;
-		out++;
-		*out = (ionInt&0x0000FF0000000000)>>40;
-		out++;
-		*out = (ionInt&0x000000FF00000000)>>32;
-		out++;
-		*out = (ionInt&0x00000000FF000000)>>24;
-		out++;
-		*out = (ionInt&0x0000000000FF0000)>>16;
-		out++;
-		*out = (ionInt&0x000000000000FF00)>>8;
-		out++;
-		*out = ionInt&0xFF;
-		out++;
-		break;
-		case 1:
-		// 7 bytes of int
-		*out = ION_INT7;
-		out++;
-		*out = (ionInt&0x00FF000000000000)>>48;
-		out++;
-		*out = (ionInt&0x0000FF0000000000)>>40;
-		out++;
-		*out = (ionInt&0x000000FF00000000)>>32;
-		out++;
-		*out = (ionInt&0x00000000FF000000)>>24;
-		out++;
-		*out = (ionInt&0x0000000000FF0000)>>16;
-		out++;
-		*out = (ionInt&0x000000000000FF00)>>8;
-		out++;
-		*out = ionInt&0xFF;
-		out++;
-		break;
-		case 2:
-		// 6 bytes of int
-		*out = ION_INT6;
-		out++;
-		*out = (ionInt&0x0000FF0000000000)>>40;
-		out++;
-		*out = (ionInt&0x000000FF00000000)>>32;
-		out++;
-		*out = (ionInt&0x00000000FF000000)>>24;
-		out++;
-		*out = (ionInt&0x0000000000FF0000)>>16;
-		out++;
-		*out = (ionInt&0x000000000000FF00)>>8;
-		out++;
-		*out = ionInt&0xFF;
-		out++;
-		break;
-		case 3:
-		// 5 bytes of int
-		*out = ION_INT5;
-		out++;
-		*out = (ionInt&0x000000FF00000000)>>32;
-		out++;
-		*out = (ionInt&0x00000000FF000000)>>24;
-		out++;
-		*out = (ionInt&0x0000000000FF0000)>>16;
-		out++;
-		*out = (ionInt&0x000000000000FF00)>>8;
-		out++;
-		*out = ionInt&0xFF;
-		out++;
-		break;
-		case 4:
-		// 4 bytes of int
-		*out = ION_INT4;
-		out++;
-		*out = (ionInt&0x00000000FF000000)>>24;
-		out++;
-		*out = (ionInt&0x0000000000FF0000)>>16;
-		out++;
-		*out = (ionInt&0x000000000000FF00)>>8;
-		out++;
-		*out = ionInt&0xFF;
-		out++;
-		break;
-		case 5:
-		// 3 bytes of int
-		*out = ION_INT3;
-		out++;
-		*out = (ionInt&0x0000000000FF0000)>>16;
-		out++;
-		*out = (ionInt&0x000000000000FF00)>>8;
-		out++;
-		*out = ionInt&0xFF;
-		out++;
-		break;
-		case 6:
-		// 2 bytes of int
-		*out = ION_INT2;
-		out++;
-		*out = (ionInt&0x000000000000FF00)>>8;
-		out++;
-		*out = ionInt&0xFF;
-		out++;
-		break;
-		case 7:
+		for (u32 i=(7-lz); i<=7; i--)
+		{
+			*out = ((ionInt>>(i*8))&0xFF);
+			out++;
+		}
+	} else {
 		if (ionInt == 1)
 		{
 			// 1
 			*out = ION_1;
 			out++;
 		} else {
-			// byte 1 of int
-			*out = ION_INT1;
-			out++;
-			*out = ionInt&0xFF;
+			// 0
+			*out = ION_0;
 			out++;
 		}
-		break;
-		case 8:
-		// 0
-		*out = ION_0;
-		out++;
-		break;
-		default:
-		break;
 	}
 	*outx = out;
 }
