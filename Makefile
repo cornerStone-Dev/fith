@@ -2,9 +2,9 @@
 all: bin tool_output sqlite3 gen bin/fith fith_src fith_src/script.fith
 
 #tool_output/fith_gram.c 
-bin/fith: src/fith_compiler.c src/fith_data.c src/fith_avl.c src/fith_ION.c tool_output/fith_lex.c tool_output/fith_ION_lex.c
+bin/fith: src/fith_compiler.c src/fith_data.c src/fith_avl.c src/fith_ION.c tool_output/fith_lex.c tool_output/fith_ION_lex.c tool_output/fith_util.o
 	./SQLite3_Helper/bin/sqlite3Helper
-	gcc -Os -march=native -fno-builtin-strlen -s -o bin/fith src/fith_compiler.c -Wall
+	gcc -Os -march=native -fno-builtin-strlen -fno-stack-protector -s -o bin/fith src/fith_compiler.c tool_output/fith_util.o -Wall
 	size bin/fith
 
 tool_output/fith_lex.c: src/fith_lex.re
@@ -12,6 +12,9 @@ tool_output/fith_lex.c: src/fith_lex.re
 
 tool_output/fith_ION_lex.c: src/fith_ION_lex.re
 	re2c -W --eager-skip src/fith_ION_lex.re -o tool_output/fith_ION_lex.c
+
+tool_output/fith_util.o: src/fith_util.c
+	gcc -O2 -march=native -fno-stack-protector -c -o tool_output/fith_util.o src/fith_util.c -Wall
 
 # old version
 # https://www.sqlite.org/2019/sqlite-autoconf-3300100.tar.gz

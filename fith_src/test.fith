@@ -230,7 +230,7 @@ $sizeOfMatrix $sizeOfMatrix * . array =$matrix
 3 7.68 '[][#]' $IONarraytest ion-set-d dup p =$IONarraytest
 2 '{"color":"green"}' s2o '[]' $IONarraytest ion-set-o dup p =$IONarraytest
 clear
-'[0,1,2,3,4,]' s2o dup p =$IONarraytest
+'[0,1]' s2o dup p =$IONarraytest
 $IONarraytest : $IONarraytest : over * . drop ; ion-each drop ; ion-each
 
 (

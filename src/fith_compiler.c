@@ -16,6 +16,7 @@
 
 #include "std_types.h"
 #include "fith_ION.h"
+#include "fith_util.h"
 
 #define NDEBUG
 #define Parse_ENGINEALWAYSONSTACK
@@ -127,7 +128,7 @@ raw_begin(void)
 {
     tcgetattr(STDIN_FILENO, &termios_orig);
     struct termios raw;
-    memcpy(&raw, &termios_orig, sizeof(raw));
+    fith_memcpy(&raw, &termios_orig, sizeof(raw));
     raw.c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
     raw.c_oflag &= ~OPOST;
     raw.c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);

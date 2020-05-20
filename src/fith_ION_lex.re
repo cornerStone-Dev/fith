@@ -261,7 +261,7 @@ loop: // label for looping within the lexxer
 		buff[1] = (length&0x0000000000FF0000)>>16;
 		buff[2] = (length&0x000000000000FF00)>>8;
 		buff[3] = length&0xFF;
-		memcpy(&buff[4], cursor, (YYCURSOR-cursor+4));
+		fith_memcpy(&buff[4], cursor, (YYCURSOR-cursor+4));
 		retVal.s = buff;
 		return retVal;
 	}
@@ -282,7 +282,7 @@ loop: // label for looping within the lexxer
 		buff[1] = (length&0x0000000000FF0000)>>16;
 		buff[2] = (length&0x000000000000FF00)>>8;
 		buff[3] = length&0xFF;
-		memcpy(&buff[4], cursor, (YYCURSOR-cursor+4));
+		fith_memcpy(&buff[4], cursor, (YYCURSOR-cursor+4));
 		retVal.s = buff;
 		return retVal;
 	}
@@ -307,7 +307,7 @@ loop: // label for looping within the lexxer
 	[\x93-\xbe] { // ION Strings
 		length =((*(YYCURSOR-1))-0x92);
 		buff = heap_malloc(length+1);
-		memcpy(buff, YYCURSOR, length);
+		fith_memcpy(buff, YYCURSOR, length);
 		buff[length]=0;
 		retVal.s = buff;
 		return retVal;
@@ -316,7 +316,7 @@ loop: // label for looping within the lexxer
 	[\xbf] { // ION unknown string length
 		length=strlen((const char *)YYCURSOR+44)+1+44;
 		buff = heap_malloc(length);
-		memcpy(buff, YYCURSOR, length);
+		fith_memcpy(buff, YYCURSOR, length);
 		retVal.s = buff;
 		return retVal;
 	}
@@ -868,7 +868,7 @@ loop: // label for looping within the lexxer
 	[\x93-\xbe] { // ION Strings
 		*out = '\"';
 		out++;
-		memcpy(out, YYCURSOR, ((*start)-0x92));
+		fith_memcpy(out, YYCURSOR, ((*start)-0x92));
 		out+=((*start)-0x92);
 		*out = '\"';
 		out++;
@@ -880,7 +880,7 @@ loop: // label for looping within the lexxer
 		u32 len = strlen((const char *)YYCURSOR+44)+44; // including null
 		*out = '\"';
 		out++;
-		memcpy(out, YYCURSOR, len);
+		fith_memcpy(out, YYCURSOR, len);
 		out+=len;
 		*out = '\"';
 		out++;
@@ -986,30 +986,7 @@ loop: // label for looping within the lexxer
 	}
 
 	"-"?( "0"|([1-9][0-9]*) ) ( ("." [0-9]+) |  (("e"|"E") [+-] [0-9]+) | ( ("." [0-9]+) (("e"|"E") [+-] [0-9]+) ) )  { // JSON floating
-		//~ Data ionNumber;
-		//~ u64 ionInt;
-		
 		ION_writeFloat(&out, atof( (const char *)start ));
-		//~ ionNumber.d = atof( (const char *)start );
-		//~ ionInt = (u64)ionNumber.i;
-		//~ *out = ION_FLOAT;
-		//~ out++;
-		//~ *out = (ionInt&0xFF00000000000000)>>56;
-		//~ out++;
-		//~ *out = (ionInt&0x00FF000000000000)>>48;
-		//~ out++;
-		//~ *out = (ionInt&0x0000FF0000000000)>>40;
-		//~ out++;
-		//~ *out = (ionInt&0x000000FF00000000)>>32;
-		//~ out++;
-		//~ *out = (ionInt&0x00000000FF000000)>>24;
-		//~ out++;
-		//~ *out = (ionInt&0x0000000000FF0000)>>16;
-		//~ out++;
-		//~ *out = (ionInt&0x000000000000FF00)>>8;
-		//~ out++;
-		//~ *out = ionInt&0xFF;
-		//~ out++;
 		goto loop;
 	}
 
@@ -1019,21 +996,6 @@ loop: // label for looping within the lexxer
 		start++;
 		if(length>45){length++;}
 		ION_writeString(&out, start, length);
-		//~ if (length < 45)
-		//~ {
-			//~ *out = ION_STRING01+(length-1);
-		//~ } else {
-			//~ *out = ION_STRING_N;
-			//~ out++;
-			//~ memcpy(out, start, length);
-			//~ out+=length;
-			//~ *out =0; //null terminate long strings
-			//~ out++;
-			//~ goto loop;
-		//~ }
-		//~ out++;
-		//~ memcpy(out, start, length);
-		//~ out+=length;
 		goto loop;
 	}
 

@@ -71,7 +71,7 @@ heap_realloc(u8 *ptr, size_t bytes)
 	{
 		len = bytes;
 	}
-	memcpy(p, ptr, len);
+	fith_memcpy(p, ptr, len);
 	return p;
 	
 }
@@ -587,7 +587,7 @@ garbage_collect(u64 last_requested_size)
 		}
 		
 		// copy into bottom
-		memcpy(pBottom, HEAP_PTR(variables[y].x), size);
+		fith_memcpy(pBottom, HEAP_PTR(variables[y].x), size);
 		// overwrite pointer to new location
 		var_data.v[variables[y].y] = (s64)(pBottom);
 		// move pointer forward
