@@ -15,7 +15,7 @@
 #include <termios.h>
 
 #include "std_types.h"
-#include "fith_ION.h"
+//#include "fith_ION.h"
 #include "fith_util.h"
 
 #define NDEBUG
@@ -23,9 +23,9 @@
 
 typedef struct Xoken Token;
 
-typedef union boken Data;
+typedef union data_s Data;
 
-typedef union boken {
+typedef union data_s {
 	u8 *   s;
 	s64    i;
 	f64    d;
@@ -50,42 +50,24 @@ typedef struct stringLitList{
 } stringLitList;
 
 typedef struct context_s{
-	ScopeList     *scopeList;
-	ScopeList     *varList;
 	Data *        stk;
 	Data *        stk_start;
 	Data *        stk_end;
-	Data *        vars;
 	Data *        cstk;
-	stringLitList *strList;
-	u8 **         words;
 	u8 *          buff;
 	u8 *          buff_start;
 	u8 *          out;
 	u8 *          yycur;
 	u8 *          stecpot;
 	struct        timespec time;
-	u32           num_dots;
 	u32           line_num;
-	u32           func_start_line_num;
-	u8            file_name_buff[512];
 	u8            is_def;
-	u8            is_fork_child;
-	u8            is_fork_parent;
-	u8            is_struct;
-	u8            is_union;
 	u8            is_fp;
 	u8            is_step;
-	u8            is_custom_type;
-	u8            inside_function;
 	u8            printed_error;
-	u8            local_macro;
-	u8            is_inline;
+	u8            word_flags;
+	u8            file_name_buff[512];
 } Context;
-
-u8 *ION_NULL_VAL = (u8 *)"null";
-u8 *ION_TRUE_VAL = (u8 *)"true";
-u8 *ION_FALSE_VAL = (u8 *)"false";
 
 
 /* function prototypes */
@@ -95,8 +77,8 @@ static void
 save_variable(u8 *start, u64 len, s64 val);
 static void
 garbage_collect(u64 last_requested_size);
-static void lex_skipVal(const u8 **YYCURSORx);
-static u32 ION_getLen(const u8 *input);
+//~ static void lex_skipVal(const u8 **YYCURSORx);
+//~ static u32 ION_getLen(const u8 *input);
 static void *
 heap_malloc(size_t bytes) __attribute__((malloc,alloc_size(1)));
 
@@ -188,7 +170,7 @@ load_file(u8 *file_name, u8 as_function)
 }
 
 // new strat: manage buffer only, then regen current line every time
-static s32
+static s64
 fith_fgets(u8 *string, u32 limit, u8 *history)
 {
 	u8 * histEnd;
@@ -404,9 +386,6 @@ fith_fgets(u8 *string, u32 limit, u8 *history)
 }
 
 /* globals */
-
-//~ static FILE * outputFile,* typeProtoFile, * typesFile,
-	//~ * funcProtoFile, * globalsFile, * interfaceFile, * includesFile;
 #define DECREMENT_STACK \
 if (c->stk>c->stk_start) \
 { \
@@ -428,23 +407,9 @@ else if ((((c->stk - c->stk_start)+(x))>374)){printf("stack overflow!!!\n"); got
 
 #include "fith_avl.c"
 #include "fith_data.c"
-#include "fith_ION.c"
-#include "../tool_output/fith_ION_lex.c"
+//#include "fith_ION.c"
+//#include "../tool_output/fith_ION_lex.c"
 #include "../tool_output/fith_lex.c"
-//#include "../tool_output/fl_c_gram.c"
-//~ #include "../tool_output/fcompile_gram.c"
-//~ #include "../tool_output/ignore_gram.c"
-
-//#define INTPUT_FILE "input/weeklystat.c"
-#define DEFAULT_DIR     "c_src/"
-#define OUTPUT_FILE     "source.c"
-#define TYPE_PROTO      "type_proto.h"
-#define TYPES           "types.h"
-#define FUNC_PROTO      "func_proto.h"
-#define FL_STD_FILE     "fl_std.h"
-#define FL_GLOBALS_FILE "globals.h"
-#define INTERFACE_FILE  "interface.h"
-#define INCLUDES_FILE   "includes.h"
 
 int main(int argc, char **argv)
 {
@@ -454,16 +419,10 @@ int main(int argc, char **argv)
 	unsigned char stringBuffer[4096] = {0};
 	unsigned char *strBuff;
 	Data stack[384]={0};
-	Data vars[512]={0};
-	//unsigned char file_name_buff[512] = {0};
+	Data cstack[128]={0};
 	unsigned char * output = output_string;
 	//u8 dirName[512];
-	Data cstack[128]={0};
-	u8 * words[128]={0};
-	//u8 * dirName_p;
-	ScopeList scopeList={0};
-	ScopeList varList={0};
-	stringLitList strList={0};
+	
 	int tmp_token;
 	u32 x, inputLen,z;
 	Context c = {0};
@@ -472,22 +431,13 @@ int main(int argc, char **argv)
 	struct dirent *dir;
 	output_string[0]=3;
 	output_string_base=&output_string[1];
-	c.scopeList = &scopeList;
-	c.varList = &varList;
 	c.out = output;
 	c.buff_start = output_string_base;
 	c.buff = output_string_base;
 	c.stk = stack;
 	c.stk_start = stack;
 	c.stk_end = &stack[374];
-	c.vars = vars;
 	c.cstk = cstack;
-	c.words = words;
-	c.strList = &strList;
-	scopeList.cursor_stack[0]=scopeList.table;
-	scopeList.end=&scopeList.table[65535];
-	varList.cursor_stack[0]=varList.table;
-	varList.end=&varList.table[65535];
 	strBuff = stringBuffer;
 	
 	var_data.v = malloc(4096);
@@ -577,7 +527,7 @@ int main(int argc, char **argv)
 							*(c.buff_start+1) = '\003';
 						}
 						do {
-							tmp_token = lex(data, &c.line_num, &c);
+							tmp_token = lex(data, &c);
 						} while (tmp_token != 0);
 						*(c.buff_start) = 3;
 					}
@@ -638,7 +588,7 @@ int main(int argc, char **argv)
 		data = load_file(c.file_name_buff, 0);
 		
 		do {
-			tmp_token = lex(data, &c.line_num, &c);
+			tmp_token = lex(data, &c);
 
 			//Parse(pEngine, tmp_token, token);
 			

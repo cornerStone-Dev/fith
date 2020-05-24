@@ -4,10 +4,10 @@ first_test: 3 8 + 11 != if 'math error' p then ;
 
 \ multi line string
 '
-Hello 
-World!
+		Hello 
+		World!
 ' p 
-
+'yoyo' p
 7 6 8 9 drop drop drop drop 
 
 \ test if else chain, use random
@@ -52,20 +52,21 @@ floating?: 5.5 6.3 f+ 11.8 != if 'floating point is not equal' p then ;
 
 \ child function to send message, read message from parent and send done
 childSend:
-	$chan1 'Hello, parent!' writes 'finished sending msg to parent' p 
-	$chan1 $buf 128 reads 'From Parent:' p p 
-	$chan1 'done' writes 
+	chan1 'Hello, parent!' writes 'finished sending msg to parent' p 
+	chan1 buf 128 reads 'From Parent:' p p 
+	chan1 'done' writes 
 ;
 
 fork_and_talk:
 	\ prepare for transfer, need to add close word
-	chan =$chan1 =$chan0 \ take up channel file descriptors
-	128 malloc =$buf \ create and save buffer
-	childSend@ fork =$pid \ create child process save off pid
-	$chan0 $buf 128 reads 'From child:' p p \ read message from child
-	$chan0 'Hello, child!' writes 'finished sending msg to child' p \send message 2 child
-	$chan0 $buf 128 reads 'done' 5 memcmp 0 != if 'message not expected' then \ read message from child
+	chan =chan1 =chan0 \ take up channel file descriptors
+	128 malloc =buf \ create and save buffer
+	@childSend fork =pid \ create child process save off pid
+	chan0 buf 128 reads 'From child:' p p \ read message from child
+	chan0 'Hello, child!' writes 'finished sending msg to child' p \send message 2 child
+	chan0 buf 128 reads 'done' 5 memcmp 0 != if 'message not expected' then \ read message from child
 ;
+fork_and_talk
 if_else_chain:
 \ if else check
  1 if 
@@ -106,86 +107,42 @@ fact:
 		dup 1 - fact               \ next number down - get its factorial
 		 * then                     \ and mult - leavin ans on stack
 ;
-
+'alive here' p
 5 fact 120 != if 'recursive factorial fail' then
 
 \ variable overwrite
-220 =$num .
-22 =$bum
-55 =$fum
-$num $bum $fum + + =$fum $fum
-=$num $num 297 != if 'variable overwite fail' then
+220 =num .
+22 =bum
+55 =fum
+num bum fum + + =fum fum
+=num num 297 != if 'variable overwite fail' then
+'alive here2' p
 
-JSON_regression_test:
-	\ json input addr, string key, value, typed function, suck up pointer, output and print 
-	'{}' '.type' 'bear' json_set_s =$json1 $json1 p
-	$json1 '.numFeet' 2   json_set_i =$json1 $json1 p
-	$json1 '.weight' 7.8  json_set_d =$json1 $json1 p
+test1:
 
-	\ json input addr, string key, value, typed function, suck up pointer, output and print 
-	'[]' '[0]' 'bear' json_set_s =$json2 $json2 p
-	$json2 '[1]' 2      json_set_i =$json2 $json2 p
-	$json2 '[2]' 7.8    json_set_d =$json2 $json2 p $json2 json_array_len
-	3 != if 'array length error' then
-
-	$json1 '.info' $json2 json_set_j =$json1 $json1 p $json1 '.info[0]' json_extract p.
-	( '{\'type\':\'bear\',\'numFeet\':2,\'weight\':7.8,\'info\':[\'bear\',2,7.8]}'
-	63 memcmp 0 != if 'ERROR JSON not expected' then )
-
-
-	'special' =$jsonObj.type.s $jsonObj p
-	'green' =$jsonObj.color.s $jsonObj p
-	'Ham sandwich' =$jsonObj.lunch.s $jsonObj p
-	5 =$jsonObj.num.i $jsonObj p
-	53.5 =$jsonObj.numpy.d $jsonObj p
-	$json2 =$jsonObj.animal.j $jsonObj p
-	67 =$jsonObj.animal[3].i $jsonObj p \ add to array value of key animal
-	$jsonObj.animal[3] . drop
-	$jsonObj.animal p
-	$jsonObj p
-
-	5 4 3 2 1 =$jsonAr[#].i 
-	=$jsonAr[#].i 
-	=$jsonAr[#].i 
-	=$jsonAr[#].i =$jsonAr[#].i 'done' =$jsonAr[#].s $jsonAr p
-	'[1,2,3,4,5]' . jeach jdone . clear
-	'[1.0,2.0,3.0,4.0,5.0]' jeach jdone f. clear 
-	'[[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5]]' jeach jeach jdone jdone . clear
-	'{"bob":"john","bob1":"john","bob2":"john","bob4":"john"}'  jeach jdone p p p p
-
-
-	\'1' =$jsonAr2[#].s $jsonAr2 p
-	'a' 'v' 'd' 'f' 'd' dep . =$jsonAr2[?].s $jsonAr2 p
-
-	1 2 3 4 5 dep . =$jsonAr3[?].i $jsonAr3 p $jsonAr3 jeach jdone . clear
-	 
-	0 =$var.key.i $var p . 'test' p $var[aa] . p
-
-	\'fith_src/script.fith' load
-
-	5 4 3 2 1 dep . =$jsonAr4[?].i $jsonAr4 dup p jsort p
-	'p' 'a' 'h' 'j' 'w' 'Z' '100' '9' dep =$jsonAr5[?].s $jsonAr5 dup p jsort p
-	5.5 6.6 1.0 3.3 99.6 dep =$jsonAr6[?].d $jsonAr6 dup p jsort p
+	'test1 here' p
+	 1 - dup 0 . != if test1 then
 
 ;
+5 test1
 
 
-indexInc: $index dup 1 + =$index ;
+\~ indexInc: $index dup 1 + =$index ;
 
-0   =$index
-5   =$matrix
-200 =$sizeOfMatrix
+\~ 0   =$index
+\~ 5   =$matrix
+\~ 200 =$sizeOfMatrix
 
-$sizeOfMatrix $sizeOfMatrix * . array =$matrix
+\~ $sizeOfMatrix $sizeOfMatrix * . array =$matrix
 
-\ set array [5] to 10
-10 5 =$matrix[]
+\~ \ set array [5] to 10
+\~ 10 5 =$matrix[]
 
-\ what is at array[5]? put on stack
-5 $matrix[] . drop
-.
-\GC
-'[0]' s2o dup p =$IONarray
+\~ \ what is at array[5]? put on stack
+\~ 5 $matrix[] . drop
+\~ .
+\~ \GC
+\~ '[0]' s2o dup p =$IONarray
 
 \~ 0
 \~ begin
@@ -223,15 +180,15 @@ $sizeOfMatrix $sizeOfMatrix * . array =$matrix
  \~ 'screw' swap '.tool' ion-set-s dup p .
  \~ 55 swap '.tool' ion-set-i dup p
 
-'[0,1,2,[0,1,2,3,4,5,6,7,8,9],4,5,6,7,8,9]' s2o dup p =$IONarraytest
-3 3 55 '[][]' $IONarraytest ion-set-i dup p =$IONarraytest
-3 77 '[][#]' $IONarraytest ion-set-i dup p =$IONarraytest
-3 'hello' '[][#]' $IONarraytest ion-set-s dup p =$IONarraytest
-3 7.68 '[][#]' $IONarraytest ion-set-d dup p =$IONarraytest
-2 '{"color":"green"}' s2o '[]' $IONarraytest ion-set-o dup p =$IONarraytest
-clear
-'[0,1]' s2o dup p =$IONarraytest
-$IONarraytest : $IONarraytest : over * . drop ; ion-each drop ; ion-each
+\~ '[0,1,2,[0,1,2,3,4,5,6,7,8,9],4,5,6,7,8,9]' s2o dup p =$IONarraytest
+\~ 3 3 55 '[][]' $IONarraytest ion-set-i dup p =$IONarraytest
+\~ 3 77 '[][#]' $IONarraytest ion-set-i dup p =$IONarraytest
+\~ 3 'hello' '[][#]' $IONarraytest ion-set-s dup p =$IONarraytest
+\~ 3 7.68 '[][#]' $IONarraytest ion-set-d dup p =$IONarraytest
+\~ 2 '{"color":"green"}' s2o '[]' $IONarraytest ion-set-o dup p =$IONarraytest
+\~ clear
+\~ '[0,1]' s2o dup p =$IONarraytest
+\~ $IONarraytest : $IONarraytest : over * . drop ; ion-each drop ; ion-each
 
 (
 $IONarraytest 

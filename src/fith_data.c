@@ -61,12 +61,12 @@ heap_realloc(u8 *ptr, size_t bytes)
 	}
 	// fresh allocation
 	p = heap_malloc(bytes);
-	if(((*ptr)&0xC0)==0x80)
-	{
-		len = ION_getLen(ptr);
-	} else {
+	//~ if(((*ptr)&0xC0)==0x80)
+	//~ {
+		//~ len = ION_getLen(ptr);
+	//~ } else {
 		len = strlen((const char *)ptr)+1;//copy the null
-	}
+	//~ }
 	if(len>bytes)
 	{
 		len = bytes;
@@ -75,69 +75,6 @@ heap_realloc(u8 *ptr, size_t bytes)
 	return p;
 	
 }
-
-#define JEACH_TEXT "SELECT json_each.type,json_each.value FROM json_each(?);"
-//~ static s64
-//~ fith_json_each(u8 *json, Data *val, sqlite3_stmt **sql)
-//~ {
-	//~ const u8 *res;
-	//~ u8 *ret;
-	//~ s64 step;
-	//~ sqlite3_stmt *s;
-	
-	//~ if (*sql)
-	//~ {
-		//~ s=*sql;
-	//~ } else {
-		//~ sqlite3_prepare_v2(fdb,
-						//~ JEACH_TEXT,
-						//~ sizeof JEACH_TEXT-1,
-						//~ &s,
-						//~ 0);
-		//~ sqlite3_bind_text(s, 1, (const char *)json, -1, SQLITE_TRANSIENT);
-		//~ *sql=s;
-	//~ }
-	
-	//~ /* prepare SQL query */
-	//~ step = sqlite3_step(s);
-	//~ if ((step = (step == SQLITE_ROW))) {
-		//~ res=sqlite3_column_text(s, 0);
-		//~ switch(res[0]) {
-			//~ case 0:   // NULL
-			//~ res = (const u8 *)"NULL";
-			//~ goto copy_exit;
-			//~ case 'a': // array
-			//~ goto text_exit;
-			//~ case 'f': // false
-			//~ goto copy_exit;
-			//~ case 'i': // integer
-			//~ val->i=sqlite3_column_int64(s, 1);
-			//~ goto reset_exit;
-			//~ case 'n': // null
-			//~ goto copy_exit;
-			//~ case 'o': // object
-			//~ goto text_exit;
-			//~ case 'r': // real
-			//~ val->d=sqlite3_column_double(s, 1);
-			//~ goto reset_exit;
-			//~ case 't': // true or text
-			//~ if (res[1]=='r') { // true
-				//~ goto copy_exit;
-			//~ }
-			//~ goto text_exit;
-			//~ default: return -1;
-		//~ }
-		//~ text_exit:
-		//~ res=sqlite3_column_text(s, 1);
-		//~ copy_exit:
-		//~ ret = logged_malloc_block(sqlite3_column_bytes(s,1));
-		//~ strcpy((char *)ret, (const char *)res);
-		//~ val->s = ret;
-	//~ }
-	//~ reset_exit:
-	//~ return step;
-//~ }
-
 
 static void
 save_function_addr(u8 *start, u64 len, u8 *addr)
@@ -234,7 +171,7 @@ fith_binary_search(s64 *array, s64 size, s64 target)
 		{
 			return -1;
 		}
-		search_index = (min + max) / 2;
+		search_index = (min + max)>>1;
 		diff = target - array[search_index];
 		if (diff==0)
 		{
@@ -252,16 +189,16 @@ fith_binary_search(s64 *array, s64 size, s64 target)
 
 typedef struct tuple_s {
 	s64 x;
-	s64 y;
+	s64 *y;
 } tuple;
 
-static __inline s64 CMP_TUPLE(tuple a,tuple b)
+static inline s64 CMP_TUPLE(tuple a,tuple b)
 {
 	return ((a.x) - (b.x));
 }
 
 /*  Used in mergesort. */
-static __inline void INSERTION_SORT_tuple(tuple *dsti, const size_t size) 
+static inline void INSERTION_SORT_tuple(tuple *dsti, const size_t size) 
 {
 	size_t i=1;
 	tuple *dst=dsti;
@@ -523,7 +460,7 @@ garbage_collect(u64 last_requested_size)
 	heap_data.generation_count++;
 	
 	// check if heap needs upgraded
-	bucket = (heap_data.generation_size+last_requested_size)*8;
+	bucket = (heap_data.generation_size+last_requested_size)*4;
 	// check if current partition is undersized
 	if (bucket > (heap_data.t+1))
 	{
@@ -545,7 +482,7 @@ garbage_collect(u64 last_requested_size)
 		if ( (tmp>=bottom)&&(tmp<top) )
 		{
 			variables[x].x = (s64)tmp-(u64)heap_data.h;
-			variables[x].y = y;
+			variables[x].y = &var_data.v[y];
 			x++;
 		}
 	}
@@ -579,17 +516,17 @@ garbage_collect(u64 last_requested_size)
 	for(u32 y=0;y<x;y++)
 	{
 		// get size
-		if(((*(HEAP_PTR(variables[y].x)))&0xC0)==0x80)
-		{
-			size = ION_getLen(HEAP_PTR(variables[y].x));
-		} else {
+		//~ if(((*(HEAP_PTR(variables[y].x)))&0xC0)==0x80)
+		//~ {
+			//~ size = ION_getLen(HEAP_PTR(variables[y].x));
+		//~ } else {
 			size = strlen((const char *)HEAP_PTR(variables[y].x))+1;//copy the null
-		}
+		//~ }
 		
 		// copy into bottom
-		fith_memcpy(pBottom, HEAP_PTR(variables[y].x), size);
+		memmove(pBottom, HEAP_PTR(variables[y].x), size);
 		// overwrite pointer to new location
-		var_data.v[variables[y].y] = (s64)(pBottom);
+		*variables[y].y = (s64)(pBottom);
 		// move pointer forward
 		pBottom+=size;
 	}

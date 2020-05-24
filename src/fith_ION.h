@@ -3,6 +3,9 @@
 /* PUBLIC DOMAIN */
 
 /* THIS IS SUBJECT TO CHANGE */
+u8 *ION_NULL_VAL = (u8 *)"null";
+u8 *ION_TRUE_VAL = (u8 *)"true";
+u8 *ION_FALSE_VAL = (u8 *)"false";
 
 #define ION_0 0x80
 #define ION_1 0x81
