@@ -23,7 +23,7 @@ random_if_else:
 		'three' p
 	then then then then
 ;
-
+random_if_else
 
 \ regular funtions with a loop test
 divisibleBy5?: dup 5 % not ;
@@ -56,6 +56,9 @@ childSend:
 	chan1 buf 128 reads 'From Parent:' p p 
 	chan1 'done' writes 
 ;
+0 =chan1
+0 =chan0
+0 =buf
 
 fork_and_talk:
 	\ prepare for transfer, need to add close word
@@ -125,6 +128,8 @@ test1:
 
 ;
 5 test1
+
+10.0 15.0 %f .f
 
 
 \~ indexInc: $index dup 1 + =$index ;

@@ -14,8 +14,8 @@ static Heap heap_data;
 
 typedef struct var_data_s {
 	s64 *v;
-	u32 i;
 	u32 hw;
+	u32 i[64];
 } Vars;
 static Vars var_data;
 
@@ -109,44 +109,59 @@ get_function_addr(u8 *start, u64 len)
 static void
 save_variable(u8 *start, u64 len, s64 val)
 {
-	StringTos64Node node;
+	StringTos64Node node=0;
 	u8 *p;
 	u32 index;
 	u8 tmp;
 	
 	tmp=start[len];
 	start[len]=0;
-	node=StringTos64Tree_find(vars, start);
-	if (node==0) // no variable saved
+	//printf("save_variable 1\n");
+	// first check locals
+	if(scope_index>0){
+		node=StringTos64Tree_find(vars[scope_index], start);
+	}
+	if (node==0) // no local variable saved
 	{
-		var_data.v[var_data.i] = val;
-		index = var_data.i;
-		var_data.i++;
-		if(var_data.i>var_data.hw){
-			var_data.hw+=512;
-			p = realloc(var_data.v, (var_data.hw/512+1)*4096);
-			if (p==0){
-				printf("OUT OF MEMORY!!!\n"); exit(1);
+		// next check globals
+		node=StringTos64Tree_find(vars[0], start);
+		if (node==0)
+		{
+			// make a variable at correct scope
+			var_data.v[var_data.i[scope_index]] = val;
+			index = var_data.i[scope_index];
+			var_data.i[scope_index]++;
+			if(var_data.i[scope_index]>var_data.hw){
+				var_data.hw+=512;
+				p = realloc(var_data.v, (var_data.hw/512+1)*4096);
+				if (p==0){
+					printf("OUT OF MEMORY!!!\n"); exit(1);
+				}
+				var_data.v=(s64 *)p;
 			}
-			var_data.v=(s64 *)p;
+			StringTos64Tree_insert(&vars[scope_index], start, len, index);
+			start[len]=tmp;
+		} else { // global variable already exists
+			// update to new value
+			var_data.v[node->val] = val;
+			start[len]=tmp;
 		}
-		StringTos64Tree_insert(&vars, start, len, index);
-		start[len]=tmp;
-	} else {
+	} else { // variable already exists
+		// update to new value
 		var_data.v[node->val] = val;
 		start[len]=tmp;
 	}
 }
 
 static s32
-get_variable(u8 *start, u64 len, s64 *val)
+get_variable(u8 *start, u64 len, s64 *val, u32 scope_index)
 {
 	StringTos64Node node;
 	u8 tmp;
 
 	tmp=start[len];
 	start[len]=0;
-	node=StringTos64Tree_find(vars, start);
+	node=StringTos64Tree_find(vars[scope_index], start);
 	if (node==0)
 	{
 		start[len]=tmp;
@@ -155,6 +170,50 @@ get_variable(u8 *start, u64 len, s64 *val)
 	start[len]=tmp;
 	*val=var_data.v[node->val];
 	return 1;
+}
+
+static s64 *
+get_variable_addr(u8 *start, u64 len, u32 scope_index)
+{
+	StringTos64Node node;
+	u8 tmp;
+
+	tmp=start[len];
+	start[len]=0;
+	node=StringTos64Tree_find(vars[scope_index], start);
+	if (node==0)
+	{
+		start[len]=tmp;
+		return 0;
+	}
+	start[len]=tmp;
+	return &var_data.v[node->val];
+}
+
+static inline void
+enter_scope(void)
+{
+	if(scope_index<63){
+		// increment index into variables
+		scope_index++;
+		// copy up current index within variables
+		var_data.i[scope_index] = var_data.i[scope_index-1];
+	} else {
+		printf("cannot increase into more scopes");
+	}
+}
+
+static inline void
+leave_scope(void)
+{
+	if(scope_index>0){
+		// check if this scope has local variables, if so destroy
+		if(vars[scope_index]){
+			StringTos64Tree_destroy(&vars[scope_index]);
+		}
+		scope_index--;
+		//printf("leaving scope!%d\n",scope_l->scopeIdx);
+	}
 }
 
 // binary search of a sorted array of s64
@@ -294,16 +353,15 @@ static __inline s64 CMP_INT(s64 x,s64 y)
 }
 
 /*  Used in mergesort. */
-static void INSERTION_SORT_s64(s64 *dsti, const size_t size) 
+static inline void INSERTION_SORT_s64(s64 *dsti, const size_t size) 
 {
-	size_t i=1;
+	size_t i=0;
 	s64 *dst=dsti;
 	
-	for (; i < size; i++) 
-	{
+	do{
 		size_t j;
 		s64 x;
-
+        i++;
 		/* If this entry is already correct, just move along */
 		if (CMP_INT(dst[i - 1], dst[i]) <= 0)
 		{
@@ -324,7 +382,7 @@ static void INSERTION_SORT_s64(s64 *dsti, const size_t size)
 			}
 		}
 		dst[j] = x;
-	}
+	} while( (i+1) < size );
 }
 
 /* Standard merge sort */
@@ -476,7 +534,7 @@ garbage_collect(u64 last_requested_size)
 		heap_data.b = 0;
 	}
 	// copy filtered variables into array
-	for(u32 y=0;y<var_data.i;y++)
+	for(u32 y=0;y<var_data.i[scope_index];y++)
 	{
 		tmp = var_data.v[y];
 		if ( (tmp>=bottom)&&(tmp<top) )

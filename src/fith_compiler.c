@@ -13,6 +13,7 @@
 #include <time.h>
 #include <math.h>
 #include <termios.h>
+#include <sys/random.h>
 
 #include "std_types.h"
 //#include "fith_ION.h"
@@ -91,8 +92,6 @@ heap_malloc(size_t bytes) __attribute__((malloc,alloc_size(1)));
 //~ indx_within(ScopeList * restrict str_l, u32  indx, u8 * restrict output);
 //~ static void
 //~ enter_scope(ScopeList * restrict scope_l);
-static inline void
-leave_scope(ScopeList * restrict scope_l);
 //~ static u32
 //~ varintGet(const u8 *s, u64 * pRes);
 //~ static u32 
@@ -385,6 +384,8 @@ fith_fgets(u8 *string, u32 limit, u8 *history)
 	return top;
 }
 
+#define FITH_STACK_MAX 135
+
 /* globals */
 #define DECREMENT_STACK \
 if (c->stk>c->stk_start) \
@@ -403,6 +404,18 @@ if (c->stk<c->stk_end) \
 #define STACK_CHECK(x) \
 if ( (((c->stk - c->stk_start)+(x))<0)){printf("stack underflow!!!\n"); goto loop;} \
 else if ((((c->stk - c->stk_start)+(x))>374)){printf("stack overflow!!!\n"); goto loop;}
+
+#define STACK_CHECK_DOWN(x) \
+if ( ((((s64)(c->stk - c->stk_start))+(x))<0) ){printf("stack underflow!!!\n"); goto loop;}
+
+#define STACK_CHECK_UP(x) \
+if ( ((((s64)(c->stk - c->stk_start))+(x))>FITH_STACK_MAX) ){printf("stack overflow!!!\n"); goto loop;}
+
+#define STACK_CHECK_DOWN_R(x) \
+if ( ((((s64)(c->stk - c->stk_start))+(x))<0) ){printf("stack underflow!!!\n"); return 0;}
+
+#define STACK_CHECK_UP_R(x) \
+if ( ((((s64)(c->stk - c->stk_start))+(x))>FITH_STACK_MAX) ){printf("stack overflow!!!\n"); return 0;}
 
 
 #include "fith_avl.c"
@@ -752,12 +765,12 @@ int main(int argc, char **argv)
 	//~ //printf("entering scope!%d\n",scope_l->scopeIdx);
 //~ }
 
-static inline void
-leave_scope(ScopeList * restrict scope_l)
-{
-	scope_l->scopeIdx--;
-	//printf("leaving scope!%d\n",scope_l->scopeIdx);
-}
+//~ static inline void
+//~ leave_scope(ScopeList * restrict scope_l)
+//~ {
+	//~ scope_l->scopeIdx--;
+	//~ //printf("leaving scope!%d\n",scope_l->scopeIdx);
+//~ }
 
 
 //~ const u8 base64EncodeLookup[64]= 
