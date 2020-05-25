@@ -25,7 +25,7 @@
 	mangled_string_lit = ['] ([^'\x00\x03] | ([\\] [']))* "\x00";
 	char_lit = [`] ([^`\x03] | ([\\] [`]))* [`];
 	integer = "-"? (oct | dec | hex);
-	word = [a-zA-Z_]([a-zA-Z_0-9?!#.[-]|"]")*;
+	word = [a-zA-Z_]([a-zA-Z_0-9?!#.{}[-]|"]")*;
 	function_call_addr = "@" word ;
 	function_definition = word ":";
 	var = "$" word; // push value on stack, if exists
@@ -143,6 +143,10 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	mangled_string_lit {
+		goto loop;
+	}
+	
 	":" {
 		num_funcs++;
 		goto loop;
@@ -157,7 +161,7 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
-	"if" {
+	"if{" {
 		num_ifs++;
 		goto loop;
 	}
@@ -170,7 +174,7 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
-	"then" {
+	"}" {
 		if (num_ifs==0 && ((is_else==0)||(is_else==1)) ){
 			*YYCURSOR_p = YYCURSOR;
 			return 0;
@@ -227,15 +231,6 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		STACK_CHECK_DOWN_R(-2)
 		c->stk--;
 		(c->stk-1)->i = (c->stk-1)->i||c->stk->i;
-		return 0;
-	}
-	"if" {
-		STACK_CHECK_DOWN_R(-1)
-		c->stk--;
-		if(c->stk->i==0){
-			YYCURSOR-=lex_if_else(&YYCURSOR, 0);
-			*YYCURSORout=YYCURSOR;
-		}
 		return 0;
 	}
 	*/                               // end of re2c block
@@ -347,6 +342,15 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		}
 		return 0;
 	}
+	"if{" {
+		STACK_CHECK_DOWN_R(-1)
+		c->stk--;
+		if(c->stk->i==0){
+			YYCURSOR-=lex_if_else(&YYCURSOR, 0);
+			*YYCURSORout=YYCURSOR;
+		}
+		return 0;
+	}
 	*/                               // end of re2c block
 	break;
 	case 3: // 4 letter words
@@ -413,9 +417,6 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	"else" {
 		YYCURSOR-=lex_if_else(&YYCURSOR, 1);
 		*YYCURSORout=YYCURSOR;
-		return 0;
-	}
-	"then" {
 		return 0;
 	}
 	"fork" {
@@ -860,6 +861,10 @@ loop: // label for looping within the lexxer
 		YYCURSOR = c->cstk->s;
 		// leave scope
 		leave_scope();
+		goto loop;
+	}
+	
+	"}" {
 		goto loop;
 	}
 	

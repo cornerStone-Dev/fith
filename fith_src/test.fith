@@ -1,6 +1,6 @@
 \ simple tests
 \debug
-first_test: 3 8 + 11 != if 'math error' p then ;
+first_test: 3 8 + 11 != if{ 'math error' p } ;
 
 \ multi line string
 '
@@ -10,20 +10,20 @@ first_test: 3 8 + 11 != if 'math error' p then ;
 'yoyo' p
 7 6 8 9 drop drop drop drop 
 
-\ test if else chain, use random
-random_if_else:
+\ test if{ else chain, use random
+random_if{_else:
 	random abs 3 &
-	dup 0 == if
+	dup 0 == if{
 		'zero' p
-	else dup 1 == if
+	else dup 1 == if{
 		'one' p
-	else dup 2 == if
+	else dup 2 == if{
 		'two' p
-	else 3 == if
+	else 3 == if{
 		'three' p
-	then then then then
+	} } } }
 ;
-random_if_else
+random_if{_else
 
 \ regular funtions with a loop test
 divisibleBy5?: dup 5 % not ;
@@ -33,22 +33,20 @@ factors_of:
 	0 10
 	begin
 		1 -
-		divisibleBy5? \ true if multiple of 5
-		if 
+		divisibleBy5? if{ 
 			swap over + swap
 		else  
-			divisibleBy3? \ true if multiple of 3
-			if 
+			divisibleBy3? if{ 
 				swap over + swap
-			then
-		then
+			}
+		}
 		
 		dup 1 ==
 	until
-	drop 23 != if '3 and 5 test faillure' p then
+	drop 23 != if{ '3 and 5 test faillure' p }
 ;
 
-floating?: 5.5 6.3 f+ 11.8 != if 'floating point is not equal' p then ;
+floating?: 5.5 6.3 f+ 11.8 != if{ 'floating point is not equal' p } ;
 
 \ child function to send message, read message from parent and send done
 childSend:
@@ -67,34 +65,34 @@ fork_and_talk:
 	@childSend fork =pid \ create child process save off pid
 	chan0 buf 128 reads 'From child:' p p \ read message from child
 	chan0 'Hello, child!' writes 'finished sending msg to child' p \send message 2 child
-	chan0 buf 128 reads 'done' 5 memcmp 0 != if 'message not expected' then \ read message from child
+	chan0 buf 128 reads 'done' 5 memcmp 0 != if{ 'message not expected' } \ read message from child
 ;
 fork_and_talk
-if_else_chain:
-\ if else check
- 1 if 
-	'If true' p
+if{_else_chain:
+\ if{ else check
+ 1 if{ 
+	'if{ true' p
 else 
 	'ERROR1' p
-	 1 if 
+	 1 if{ 
 		'ERROR2' p 
 	else 
 		'ERROR3' p 
-	then 
+	} 
 	'ERROR4' p
-	1 if
+	1 if{
 	'ERROR5' p
-	then
-	0 if
+	}
+	0 if{
 		9
 	else
-		1 if
+		1 if{
 			'ERROR6' p
 		else
 			'ERROR7' p
-		then
-	then
-then 
+		}
+	}
+} 
 'Always' p 
 ;
 
@@ -102,29 +100,29 @@ then
 5 0 swap                           \ place a zero below n
   begin dup 1 - dup 1 == until     \ make stack like 0 n ... 4 3 2 1
   begin * over 0 == until     \ multiply till see the zero below answer
-  swap drop 120 != if 'loop factorial fail' then
+  swap drop 120 != if{ 'loop factorial fail' }
 
 \ recursive factorial
 fact: 
-	dup 1 > if                     \ if 1 (or 0) \just leave on stack
+	dup 1 > if{                     \ if{ 1 (or 0) \just leave on stack
 		dup 1 - fact               \ next number down - get its factorial
-		 * then                     \ and mult - leavin ans on stack
+		 * }                     \ and mult - leavin ans on stack
 ;
 'alive here' p
-5 fact 120 != if 'recursive factorial fail' then
+5 fact 120 != if{ 'recursive factorial fail' }
 
 \ variable overwrite
 220 =num .
 22 =bum
 55 =fum
 num bum fum + + =fum fum
-=num num 297 != if 'variable overwite fail' then
+=num num 297 != if{ 'variable overwite fail' }
 'alive here2' p
 
 test1:
 
 	'test1 here' p
-	 1 - dup 0 . != if test1 then
+	 1 - dup 0 . != if{ test1 }
 
 ;
 5 test1
@@ -237,9 +235,9 @@ ion-each
 		( x1 x2 x3 -- )
 		( #var1=x1 #var2=x2 #var3=x3 )
 \~ fact: { #var1 #var2 #var3 } 
-	\~ dup 1 > if                     \ if 1 (or 0) \just leave on stack
+	\~ dup 1 > if{                     \ if{ 1 (or 0) \just leave on stack
 		\~ dup 1 - fact               \ next number down - get its factorial
-		 \~ * then                     \ and mult - leavin ans on stack
+		 \~ * }                     \ and mult - leavin ans on stack
 \~ ;
 
 
