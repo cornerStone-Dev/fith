@@ -108,7 +108,6 @@ fact:
 		dup 1 - fact               \ next number down - get its factorial
 		 * }                     \ and mult - leavin ans on stack
 ;
-'alive here' p
 5 fact 120 != if{ 'recursive factorial fail' }
 
 \ variable overwrite
@@ -117,17 +116,41 @@ fact:
 55 =fum
 num bum fum + + =fum fum
 =num num 297 != if{ 'variable overwite fail' }
-'alive here2' p
 
 test1:
 
-	'test1 here' p
-	 1 - dup 0 . != if{ test1 }
+	\'test1 here' p
+	 1 - dup 0 != if{ test1 }
 
 ;
 5 test1
 
 10.0 15.0 %f .f
+
+'What an incomplete' ' thought on the subject.' +s dup p 'furthermore!' +s p
+clear
+0 =i
+begin
+	
+	i . dup 1 + =i
+	
+10 == until
+
+(
+
+0 =i
+: i 10 <; :i 1 + =i; for{
+\ do stuff
+}
+
+for {
+\ do test
+\ do stuff
+\ do increment stuffs
+}
+
+need constants...
+)
 
 
 \~ indexInc: $index dup 1 + =$index ;

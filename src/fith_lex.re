@@ -960,13 +960,16 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 
-	//~ "+s" {
-		//~ STACK_CHECK_DOWN(-2)
-		//~ c->stk--;
-		
-		//~ (c->stk-1)->i = (c->stk-1)->i+c->stk->i;
-		//~ goto loop;
-	//~ }
+	"+s" { // string concatenation
+		STACK_CHECK_DOWN(-2)
+		c->stk--;
+		u64 string1Len = strlen((const char *)(c->stk-1)->s);
+		u64 string2Len = strlen((const char *)c->stk->s);
+		(c->stk-1)->s = heap_realloc((c->stk-1)->s,
+						              string1Len+string2Len+1 );
+		memmove(((c->stk-1)->s+string1Len), c->stk->s, string2Len+1);
+		goto loop;
+	}
 
 	"-" {
 		STACK_CHECK_DOWN(-2)

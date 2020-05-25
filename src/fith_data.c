@@ -71,7 +71,7 @@ heap_realloc(u8 *ptr, size_t bytes)
 	{
 		len = bytes;
 	}
-	fith_memcpy(p, ptr, len);
+	memmove(p, ptr, len);
 	return p;
 	
 }
