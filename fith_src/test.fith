@@ -23,7 +23,8 @@ random_if{_else:
 		'three' p
 	} } } }
 ;
-random_if{_else
+random_if{_else 
+clear
 
 \ regular funtions with a loop test
 divisibleBy5?: dup 5 % not ;
@@ -31,7 +32,7 @@ divisibleBy3?: dup 3 % not ;
 
 factors_of:
 	0 10
-	begin
+	do
 		1 -
 		divisibleBy5? if{ 
 			swap over + swap
@@ -41,10 +42,11 @@ factors_of:
 			}
 		}
 		
-		dup 1 ==
-	until
+		dup 1 == if{ leave }
+	loop
 	drop 23 != if{ '3 and 5 test faillure' p }
 ;
+factors_of
 
 floating?: 5.5 6.3 f+ 11.8 != if{ 'floating point is not equal' p } ;
 
@@ -98,8 +100,8 @@ else
 
 \ loop factorial
 5 0 swap                           \ place a zero below n
-  begin dup 1 - dup 1 == until     \ make stack like 0 n ... 4 3 2 1
-  begin * over 0 == until     \ multiply till see the zero below answer
+  do dup 1 - dup 1 == if{ leave } loop     \ make stack like 0 n ... 4 3 2 1
+  do * over 0 == if{ leave } loop   \ multiply till see the zero below answer
   swap drop 120 != if{ 'loop factorial fail' }
 
 \ recursive factorial
@@ -111,7 +113,7 @@ fact:
 5 fact 120 != if{ 'recursive factorial fail' }
 
 \ variable overwrite
-220 =num .
+220  =num 
 22 =bum
 55 =fum
 num bum fum + + =fum fum
@@ -130,11 +132,38 @@ test1:
 'What an incomplete' ' thought on the subject.' +s dup p 'furthermore!' +s p
 clear
 0 =i
-begin
+do
 	
 	i . dup 1 + =i
 	
-10 == until
+10 == if{ leave } loop
+
+0 =:num_beasts
+10 =num_beasts
+10 =:num_beasts
+10 +=num_beasts
+
+1 =incVar incVar .
+3  . -=incVar incVar .
+
+clear -2
+\debug
+( top of stack value )  case
+( top of stack value )	-1 == ( IS THIS NOT ZERO-> ) if{ 'negative one' p  }
+( top of stack value )	 0 == if{ 'zero' p }
+( top of stack value )	 1 == if{ 'one' p  }
+( top of stack value )	-2 == if{ 'negative two' p }
+( top of stack value )	 drop 'value on stack is' p . drop
+end
+.
+
+clear -2
+dup -1 == if{ 'negative one' p 
+	else dup 0 == if{ 'zero' p
+	else dup 1 == if{ 'one' p
+	else dup -2 == if{ 'negative two' p
+	else 'value on stack is' p .
+	} } } }
 
 (
 
@@ -171,11 +200,11 @@ need constants...
 \~ '[0]' s2o dup p =$IONarray
 
 \~ 0
-\~ begin
+\~ do
 	\~ dup =$cart1[#].i
 	\~ 1 +
 	\~ dup $sizeOfMatrix ==
-\~ until
+\~ if{ leave } loop
 \~ drop
 \~ $cart1 . 
 \~ jeach  \first val on stack .

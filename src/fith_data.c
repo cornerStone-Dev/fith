@@ -106,12 +106,13 @@ get_function_addr(u8 *start, u64 len)
 	return node->val;
 }
 
+// add flag for "constant" tag
 static void
-save_variable(u8 *start, u64 len, s64 val)
+save_variable(u8 *start, u64 len, s64 val, u64 flags)
 {
 	StringTos64Node node=0;
 	u8 *p;
-	u32 index;
+	u64 index;
 	u8 tmp;
 	
 	tmp=start[len];
@@ -130,6 +131,7 @@ save_variable(u8 *start, u64 len, s64 val)
 			// make a variable at correct scope
 			var_data.v[var_data.i[scope_index]] = val;
 			index = var_data.i[scope_index];
+			index|=flags;
 			var_data.i[scope_index]++;
 			if(var_data.i[scope_index]>var_data.hw){
 				var_data.hw+=512;
@@ -143,12 +145,21 @@ save_variable(u8 *start, u64 len, s64 val)
 			start[len]=tmp;
 		} else { // global variable already exists
 			// update to new value
-			var_data.v[node->val] = val;
+			
+			if((node->val&0x8000000000000000)==0){
+				var_data.v[(node->val&0xFFFFFFFF)] = val;
+			} else {
+				printf("Cannot change constant: %s\n", start); 
+			}
 			start[len]=tmp;
 		}
 	} else { // variable already exists
 		// update to new value
-		var_data.v[node->val] = val;
+		if((node->val&0x8000000000000000)==0){
+			var_data.v[(node->val&0xFFFFFFFF)] = val;
+		} else {
+			printf("Cannot change constant: %s\n", start);  
+		}
 		start[len]=tmp;
 	}
 }
@@ -168,12 +179,12 @@ get_variable(u8 *start, u64 len, s64 *val, u32 scope_index)
 		return 0;
 	}
 	start[len]=tmp;
-	*val=var_data.v[node->val];
+	*val=var_data.v[(node->val&0xFFFFFFFF)];
 	return 1;
 }
 
 static s64 *
-get_variable_addr(u8 *start, u64 len, u32 scope_index)
+get_variable_addr(u8 *start, u64 len, u32 scope_index, s64 *val)
 {
 	StringTos64Node node;
 	u8 tmp;
@@ -187,7 +198,8 @@ get_variable_addr(u8 *start, u64 len, u32 scope_index)
 		return 0;
 	}
 	start[len]=tmp;
-	return &var_data.v[node->val];
+	*val = node->val;
+	return &var_data.v[(node->val&0xFFFFFFFF)];
 }
 
 static inline void

@@ -67,6 +67,7 @@ typedef struct context_s{
 	u8            is_step;
 	u8            printed_error;
 	u8            word_flags;
+	u8            in_case;
 	u8            file_name_buff[512];
 } Context;
 
@@ -75,7 +76,7 @@ typedef struct context_s{
 static void
 save_function_addr(u8 *start, u64 len, u8 *addr);
 static void
-save_variable(u8 *start, u64 len, s64 val);
+save_variable(u8 *start, u64 len, s64 val, u64 flags);
 static void
 garbage_collect(u64 last_requested_size);
 //~ static void lex_skipVal(const u8 **YYCURSORx);
@@ -130,6 +131,10 @@ print_code(const u8 *str, u32 len)
 	for(u32 x=0; x<len; x++){
 		if(str[x]=='\000') {
 			fputc ('\'', stdout);
+			continue;
+		}
+		if(str[x]==0x04) {
+			fputc ('}', stdout);
 			continue;
 		}
 		fputc (str[x], stdout);

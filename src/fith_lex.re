@@ -113,29 +113,30 @@ loop: // label for looping within the lexxer
 	*/                               // end of re2c block
 }
 
-static s64 lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else) // YYCURSOR is defined as a function parameter
+static u64 lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else, u32 in_case) // YYCURSOR is defined as a function parameter
 {                                    //
 	u8 * YYMARKER;    // YYMARKER is defined as a local variable
 	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
 	/*const*/ u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
-	/*const*/ //u8 * start;
 	u32 num_ifs=0;
 	u32 num_funcs=0;
+	u32 num_loops=0;
+	u32 num_case=0;
 	
 	YYCURSOR = *YYCURSOR_p;
 
 loop: // label for looping within the lexxer
-	//start = YYCURSOR;
+
 
 	/*!re2c                          // start of re2c block **/
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
-	* { /*start =YYCURSOR;*/ goto loop; }//   default rule with its semantic action
+	* { goto loop; }//   default rule with its semantic action
 	[\x03] { return 1; }             // EOF rule with null sentinal
 	
 	
-	wsp {
+	(scm | mcm)+ {
 		goto loop;
 	}
 	
@@ -161,11 +162,39 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	
+	"do" {
+		num_loops++;
+		goto loop;
+	}
+	
+	"loop" {
+		if ( (is_else==3) && (num_loops==0) ){
+			*YYCURSOR_p = YYCURSOR;
+			return 0;
+		}
+		num_loops--;
+		goto loop;
+	}
+
+	"case" {
+		num_case++;
+		goto loop;
+	}
+
+	"end" {
+		if ( (is_else==4) && (num_case==0) ){
+			*YYCURSOR_p = YYCURSOR;
+			return 0;
+		}
+		num_case--;
+		goto loop;
+	}
+
 	"if{" {
 		num_ifs++;
 		goto loop;
 	}
-	
+
 	"else" {
 		if ( (num_ifs==0) && (is_else==0) ){
 			*YYCURSOR_p = YYCURSOR;
@@ -173,9 +202,12 @@ loop: // label for looping within the lexxer
 		}
 		goto loop;
 	}
-	
+
 	"}" {
 		if (num_ifs==0 && ((is_else==0)||(is_else==1)) ){
+			if(in_case){
+				*(YYCURSOR-1)=0x04;
+			}
 			*YYCURSOR_p = YYCURSOR;
 			return 0;
 		}
@@ -231,6 +263,17 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		STACK_CHECK_DOWN_R(-2)
 		c->stk--;
 		(c->stk-1)->i = (c->stk-1)->i||c->stk->i;
+		return 0;
+	}
+	"do" {
+		// save top of loop
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		// find end of loop
+		YYCURSOR-=lex_if_else(&YYCURSOR, 3, 0);
+		// save end of loop
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
 		return 0;
 	}
 	*/                               // end of re2c block
@@ -345,10 +388,28 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	"if{" {
 		STACK_CHECK_DOWN_R(-1)
 		c->stk--;
-		if(c->stk->i==0){
-			YYCURSOR-=lex_if_else(&YYCURSOR, 0);
+		if(c->stk->i==0){ // false
+			if(c->in_case){
+				// duplicate value for next test
+				c->stk->i = (c->stk-1)->i;
+				c->stk++;
+			}
+			YYCURSOR-=lex_if_else(&YYCURSOR, 0, 0);
 			*YYCURSORout=YYCURSOR;
+		} else if(c->in_case){ // true
+			// clear flag
+			c->in_case=0;
+			// re-write ending for case statement
+			lex_if_else(&YYCURSOR, 0, 1);
+			// drop auxilary test value
+			c->stk--;
 		}
+		return 0;
+	}
+	"end" {
+		// clear flag
+		c->in_case=0;
+		c->cstk-=2;
 		return 0;
 	}
 	*/                               // end of re2c block
@@ -366,7 +427,7 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		STACK_CHECK_DOWN_R(-1)
 		c->stk--;
 		// save off return
-		c->cstk->s = YYCURSOR;
+		c->cstk->s = (u8 *)(((u64)YYCURSOR)|0x8000000000000000);
 		c->cstk++;
 		// jump to function
 		*YYCURSORout = c->stk->s;
@@ -415,7 +476,7 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		return 0;
 	}
 	"else" {
-		YYCURSOR-=lex_if_else(&YYCURSOR, 1);
+		YYCURSOR-=lex_if_else(&YYCURSOR, 1, 0);
 		*YYCURSORout=YYCURSOR;
 		return 0;
 	}
@@ -428,7 +489,7 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		if (res < 0){
 			printf("Fork error!!!\n");
 		} else if (res == 0) {
-			c->cstk->s = (u8*)"exit";
+			c->cstk->s = (u8 *)(((u64)"exit")|0x8000000000000000);
 			c->cstk++;
 			// jump to function
 			*YYCURSORout = (c->stk-1)->s;
@@ -481,6 +542,27 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		}
 		return 0;
 	}
+	"loop" {
+		*YYCURSORout = (c->cstk-2)->s;
+		return 0;
+	}
+	"case" {
+		// duplicate test value if there
+		STACK_CHECK_DOWN_R(-1)
+		STACK_CHECK_UP_R(1)
+		c->stk->i = (c->stk-1)->i;
+		c->stk++;
+		// save top of case
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		// find end of case
+		YYCURSOR-=lex_if_else(&YYCURSOR, 4, 0);
+		// save end of loop
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		c->in_case=1;
+		return 0;
+	}
 	*/                               // end of re2c block
 	break;
 	case 4: // 5 letter words
@@ -494,21 +576,6 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 
 	"clear" {
 		c->stk=c->stk_start;
-		return 0;
-	}
-	"begin" {
-		c->cstk->s = YYCURSOR;
-		c->cstk++;
-		return 0;
-	}
-	"until" {
-		STACK_CHECK_DOWN_R(-1)
-		c->stk-=1;
-		if(c->stk->i==0){
-			*YYCURSORout = (c->cstk-1)->s;
-		} else {
-			c->cstk--;
-		}
 		return 0;
 	}
 	"sleep" {
@@ -535,6 +602,19 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 			printf("reads error!!!\n");
 		}
 		(c->stk-1)->s = c->stk->s;
+		return 0;
+	}
+	"leave" {
+		// clear flag
+		c->in_case=0;
+		// leave current loop
+		*YYCURSORout = (c->cstk-1)->s;
+		// clear top two cntrl stacks entries
+		c->cstk-=2;
+		return 0;
+	}
+	"again" {
+		*YYCURSORout = (c->cstk-2)->s;
 		return 0;
 	}
 	"debug" {
@@ -663,8 +743,10 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	"return" {
 		// pop command stack
 		c->cstk--;
+		// skip past any looping data
+		while( (((u64)c->cstk->s)&0x8000000000000000)==0 ){c->cstk--;}
 		// goto to return address
-		*YYCURSORout = c->cstk->s;
+		*YYCURSORout = (u8 *)(((u64)c->cstk->s)&0x7FFFFFFFFFFFFFFF);
 		// leave scope
 		leave_scope();
 		return 0;
@@ -765,7 +847,7 @@ loop: // label for looping within the lexxer
 			//stpcpy((char *)c->stecpot, " debug");
 			c->stecpot=YYCURSOR;
 			stpcpy((char *)YYCURSOR, "debug ");
-			printf("YYCURSOR::%s\n",YYCURSOR);
+			//printf("YYCURSOR::%s\n",YYCURSOR);
 		} else {
 			c->is_step = 2;
 		}
@@ -781,6 +863,7 @@ loop: // label for looping within the lexxer
 	* { 
 		u8 *s=start;
 		u8 *f=YYCURSOR;
+		//printf("char is %d, length %d \n", *s, YYCURSOR-start);
 		while (*s!='\n'){
 			s--;
 		}
@@ -793,10 +876,20 @@ loop: // label for looping within the lexxer
 		for (u32 ss=0; ss <(f-s); ss++){
 			fputc ( s[ss], stdout);
 		}
-		fputc ( '\n', stdout);
+		printf("\n");
 		goto loop; 
 	} //   default rule with its semantic action start =YYCURSOR;
 	[\x03] { return 0; }             // EOF rule with 0x03 sentinal
+	
+	[\x04] { // inside case statement, end of if
+		// restore normal ending
+		*(YYCURSOR-1)='}';
+		// leave current case
+		YYCURSOR = (c->cstk-1)->s;
+		// clear top two cntrl stacks entries
+		c->cstk-=2;
+		goto loop;
+	}            
 	
 	wsp {
 		//~ while (start!=YYCURSOR){
@@ -854,11 +947,11 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 
-	";" {
+	";" { // end of function default return
 		// pop command stack
 		c->cstk--;
 		// goto to return address
-		YYCURSOR = c->cstk->s;
+		YYCURSOR = (u8 *)(((u64)c->cstk->s)&0x7FFFFFFFFFFFFFFF);
 		// leave scope
 		leave_scope();
 		goto loop;
@@ -872,7 +965,7 @@ loop: // label for looping within the lexxer
 		STACK_CHECK_UP(1)
 		c->stk->s = YYCURSOR;
 		c->stk++;
-		YYCURSOR-=lex_if_else(&YYCURSOR, 2); // skip definition
+		YYCURSOR-=lex_if_else(&YYCURSOR, 2, 0); // skip definition
 		goto loop;
 	}
 
@@ -1101,8 +1194,72 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 
-	"=" {
+	"=" { // assignment
 		c->word_flags = 1;
+		goto loop;
+	}
+
+	"=:" { // assignment of constant
+		c->word_flags = 3;
+		goto loop;
+	}
+
+	"+=" { // assignment
+		c->word_flags = 4;
+		goto loop;
+	}
+	
+	"-=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x10;
+		goto loop;
+	}
+
+	"*=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x20;
+		goto loop;
+	}
+
+	"/=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x30;
+		goto loop;
+	}
+
+	"%=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x40;
+		goto loop;
+	}
+
+	"&=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x50;
+		goto loop;
+	}
+
+	"|=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x60;
+		goto loop;
+	}
+
+	"^=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x70;
+		goto loop;
+	}
+
+	">>=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x80;
+		goto loop;
+	}
+
+	"<<=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x90;
 		goto loop;
 	}
 
@@ -1114,12 +1271,13 @@ loop: // label for looping within the lexxer
 	// new work flow. Check locals if any. Check functions. Check globals. Nothing found.
 	word {
 		//get_function_addr
+		s64 *varP, tmp;
 		s32 res;
+		u8 flags;
 		if (lex_word(start, c, &YYCURSOR, (YYCURSOR - start))){
-			switch(c->word_flags){
+			switch(c->word_flags&0x0F){
 				case 0: // no flags
 				// check locals
-				// TODO : STUB_FOR_LOCALS
 				if(scope_index>0&&(vars[scope_index]!=0)){
 					res = get_variable(start, (YYCURSOR - start), &c->stk->i, scope_index);
 					if (res!=0){
@@ -1134,7 +1292,7 @@ loop: // label for looping within the lexxer
 				if (c->stk->s!=0){
 					// IT IS A FUNCTION!!!
 					// save off return
-					c->cstk->s = YYCURSOR;
+					c->cstk->s = (u8 *)(((u64)YYCURSOR)|0x8000000000000000);
 					c->cstk++;
 					// jump to function
 					YYCURSOR = c->stk->s;
@@ -1160,14 +1318,13 @@ loop: // label for looping within the lexxer
 				STACK_CHECK_DOWN(-1)
 				c->stk--;
 				// will try to insert unique name, if fails will update value only
-				save_variable(start, (YYCURSOR - start), c->stk->i);
+				save_variable(start, (YYCURSOR - start), c->stk->i, 0);
 				break;
 				case 2: // get address
 				c->word_flags=0;
 				// check locals
-				// TODO : STUB_FOR_LOCALS
 				if(scope_index>0&&(vars[scope_index]!=0)){
-					c->stk->s = (u8 *)get_variable_addr(start, (YYCURSOR - start), scope_index);
+					c->stk->s = (u8 *)get_variable_addr(start, (YYCURSOR - start), scope_index, &tmp);
 					if (c->stk->s!=0){
 						STACK_CHECK_UP(1)
 						c->stk++;
@@ -1184,7 +1341,7 @@ loop: // label for looping within the lexxer
 				}
 				// else
 				// check if its a global
-				c->stk->s = (u8 *)get_variable_addr(start, (YYCURSOR - start), 0);
+				c->stk->s = (u8 *)get_variable_addr(start, (YYCURSOR - start), 0, &tmp);
 				if (c->stk->s!=0){
 					STACK_CHECK_UP(1)
 					c->stk++;
@@ -1195,6 +1352,81 @@ loop: // label for looping within the lexxer
 				print_code(start, (YYCURSOR - start));
 				printf("\n");
 				break;
+				case 3: // assignment of constant
+				c->word_flags=0;
+				STACK_CHECK_DOWN(-1)
+				c->stk--;
+				// will try to insert unique name, if fails will update value only
+				save_variable(start, (YYCURSOR - start), c->stk->i, ((u64)0x80)<<56);
+				break;
+				case 4: // plus equals operator
+				flags=c->word_flags;
+				c->word_flags=0;
+				STACK_CHECK_DOWN(-1)
+				c->stk--;
+				varP=0;
+				// check locals
+				if(scope_index>0&&(vars[scope_index]!=0)){
+					varP = get_variable_addr(start, (YYCURSOR - start), scope_index, &tmp);
+				}
+				// else
+				// check if its a global
+				if(varP==0){
+					varP = get_variable_addr(start, (YYCURSOR - start), 0, &tmp);
+				}
+				// nothing
+				if (varP==0){
+					printf("Cannot find identifier as a local/global name!!!");
+					print_code(start, (YYCURSOR - start));
+					printf("\n");
+					goto loop;
+				}
+				// constant
+				if((tmp&0x8000000000000000)!=0){
+					printf("Cannot change constant: ");
+					print_code(start, (YYCURSOR - start));
+					printf("\n");
+					goto loop;
+				}
+				// else
+				// load -> modify -> store
+				tmp = *varP; // load
+				// modify
+				switch(flags>>4){
+					case 0:
+					tmp = tmp+c->stk->i;
+					break;
+					case 1:
+					tmp = tmp-c->stk->i;
+					break;
+					case 2:
+					tmp = tmp*c->stk->i;
+					break;
+					case 3:
+					tmp = tmp/c->stk->i;
+					break;
+					case 4:
+					tmp = tmp%c->stk->i;
+					break;
+					case 5:
+					tmp = tmp&c->stk->i;
+					break;
+					case 6:
+					tmp = tmp|c->stk->i;
+					break;
+					case 7:
+					tmp = tmp^c->stk->i;
+					break;
+					case 8:
+					tmp = tmp>>c->stk->i;
+					break;
+					case 9:
+					tmp = tmp<<c->stk->i;
+					break;
+				}
+				// store
+				*varP = tmp;
+				break;
 			}
 		}
 		goto loop;
@@ -1202,7 +1434,7 @@ loop: // label for looping within the lexxer
 	
 	function_definition {
 		save_function_addr(start, (YYCURSOR - start-1), YYCURSOR);
-		YYCURSOR-=lex_if_else(&YYCURSOR, 2); // skip definition
+		YYCURSOR-=lex_if_else(&YYCURSOR, 2, 0); // skip definition
 		goto loop;
 	}
 	*/                               // end of re2c block
