@@ -762,11 +762,8 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		return 0;
 	}
 	"random" {
-		s32 res;
 		STACK_CHECK_UP_R(1)
-		do{
-			res = getrandom(&c->stk->i, 8, 0);
-		} while(res!=8);
+		randomness(8, &c->stk->i);
 		c->stk++;
 		return 0;
 	}

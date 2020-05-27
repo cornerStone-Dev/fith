@@ -228,6 +228,62 @@ leave_scope(void)
 	}
 }
 
+
+static struct PrngType{
+  u32 produce_count;          /* True if initialized */
+  u8 i, j;            /* State variables */
+  u8 s[256];          /* State variables */
+} Prng;
+
+static void 
+randomness_init(void)
+{
+	u32 i;
+	s32 res;
+	u8 k[256];
+	u8 t;
+	Prng.j = 0;
+	Prng.i = 0;
+	do{
+		res = getrandom(&k, 256, 0);
+	} while(res!=256);
+	for(i=0; i<256; i++){
+		Prng.s[i] = (u8)i;
+	}
+	for(i=0; i<256; i++){
+		Prng.j += Prng.s[i] + k[i];
+		t = Prng.s[Prng.j];
+		Prng.s[Prng.j] = Prng.s[i];
+		Prng.s[i] = t;
+	}
+}
+
+/*
+** Return N random bytes.
+*/
+static void 
+randomness(u32 N, void *pBuf)
+{
+	u8 *zBuf = pBuf;
+	u8 t;
+
+	if( (Prng.produce_count&0x3FFFFFFF)==0 )
+	{
+		randomness_init();
+	}
+	Prng.produce_count+=N;
+
+	do{
+		Prng.i++;
+		t = Prng.s[Prng.i];
+		Prng.j += t;
+		Prng.s[Prng.i] = Prng.s[Prng.j];
+		Prng.s[Prng.j] = t;
+		t += Prng.s[Prng.i];
+		*(zBuf++) = Prng.s[t];
+	}while( --N );
+}
+
 // binary search of a sorted array of s64
 static s64
 fith_binary_search(s64 *array, s64 size, s64 target)
