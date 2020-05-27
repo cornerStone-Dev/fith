@@ -145,7 +145,7 @@ do
 
 1 =incVar incVar .
 3  . -=incVar incVar .
-
+do random 0xFFFF & 100 < if{ 'leaving loop' p leave } loop 'after loop' p
 clear -2
 \debug
 ( top of stack value )  case
@@ -164,6 +164,9 @@ dup -1 == if{ 'negative one' p
 	else dup -2 == if{ 'negative two' p
 	else 'value on stack is' p .
 	} } } }
+
+clear \debug 
+
 
 (
 

@@ -55,6 +55,7 @@ typedef struct context_s{
 	Data *        stk_start;
 	Data *        stk_end;
 	Data *        cstk;
+	Data *        cstk_start;
 	u8 *          buff;
 	u8 *          buff_start;
 	u8 *          out;
@@ -456,6 +457,7 @@ int main(int argc, char **argv)
 	c.stk_start = stack;
 	c.stk_end = &stack[374];
 	c.cstk = cstack;
+	c.cstk_start = cstack;
 	strBuff = stringBuffer;
 	
 	var_data.v = malloc(4096);

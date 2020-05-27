@@ -127,7 +127,6 @@ static u64 lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else, u32 in_case) // 
 
 loop: // label for looping within the lexxer
 
-
 	/*!re2c                          // start of re2c block **/
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
@@ -212,6 +211,10 @@ loop: // label for looping within the lexxer
 			return 0;
 		}
 		num_ifs--;
+		goto loop;
+	}
+
+	[a-z{}]+ {
 		goto loop;
 	}
 
