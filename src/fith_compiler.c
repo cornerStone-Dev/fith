@@ -53,9 +53,7 @@ typedef struct stringLitList{
 typedef struct context_s{
 	Data *        stk;
 	Data *        stk_start;
-	Data *        stk_end;
 	Data *        cstk;
-	Data *        cstk_start;
 	u8 *          buff;
 	u8 *          buff_start;
 	u8 *          out;
@@ -437,7 +435,7 @@ int main(int argc, char **argv)
 	unsigned char output_string[65536] = {0};
 	unsigned char stringBuffer[4096] = {0};
 	unsigned char *strBuff;
-	Data stack[384]={0};
+	Data stack[FITH_STACK_MAX+1]={0};
 	Data cstack[128]={0};
 	unsigned char * output = output_string;
 	//u8 dirName[512];
@@ -455,9 +453,7 @@ int main(int argc, char **argv)
 	c.buff = output_string_base;
 	c.stk = stack;
 	c.stk_start = stack;
-	c.stk_end = &stack[374];
 	c.cstk = cstack;
-	c.cstk_start = cstack;
 	strBuff = stringBuffer;
 	
 	var_data.v = malloc(4096);

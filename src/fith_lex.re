@@ -878,7 +878,7 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	}
 }
 
-static int lex(u8 * YYCURSOR, Context * c) // YYCURSOR is defined as a function parameter
+static int lex(u8 *YYCURSOR, Context *c) // YYCURSOR is defined as a function parameter
 {                                    //
 	u8 * YYMARKER;    // YYMARKER is defined as a local variable
 	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable

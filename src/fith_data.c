@@ -30,12 +30,12 @@ heap_malloc(size_t bytes)
 	u64 next_index;
 	
 	bytes=(bytes+7)/8*8;
-	printf("heap_malloc\n");
+	//printf("heap_malloc\n");
 	next_index = heap_data.i+bytes;
 	while (next_index>heap_data.t) // garbage collection time
 	{
 		garbage_collect(bytes);
-		printf("back from garbage trip heap_malloc\n");
+		//printf("back from garbage trip heap_malloc\n");
 		next_index = heap_data.i+bytes;
 	}
 	p = &heap_data.h[heap_data.i];
@@ -71,7 +71,7 @@ heap_realloc(u8 *ptr, size_t bytes)
 			next_index=next_index-heap_data.i;
 			garbage_collect(next_index);
 			//garbage_collect(bytes);
-			printf("back from garbage tripREALLOC\n");
+			//printf("back from garbage tripREALLOC\n");
 			return 0;
 		}
 	}
@@ -599,18 +599,18 @@ garbage_collect(u64 last_requested_size)
 	u8 copy_collect=0;
 	tuple variables[2048];
 	
-	printf("Taking out garbage\n");
+	//printf("Taking out garbage\n");
 	top = (u64)(heap_data.i + heap_data.h);
 	// increment and check generation count
 	heap_data.generation_count++;
 	
 	// check if heap needs upgraded
 	bucket = (heap_data.generation_size+last_requested_size)*4;
-	printf("heap_data.generation_size %ld, bucket %ld,last_requested_size %ld \n",heap_data.generation_size,bucket,last_requested_size);
+	//printf("heap_data.generation_size %ld, bucket %ld,last_requested_size %ld \n",heap_data.generation_size,bucket,last_requested_size);
 	// check if current partition is undersized
 	if (bucket > (heap_data.t+1))
 	{
-		printf("attempting to expand heap\n");
+		//printf("attempting to expand heap\n");
 		copy_collect = 1;
 		heap_data.generation_count = 0;
 	}
@@ -633,13 +633,13 @@ garbage_collect(u64 last_requested_size)
 			x++;
 		}
 	}
-	printf("x %ld, \n",x);
+	//printf("x %ld, \n",x);
 	// copy filtered variables into array STACK
-	printf("stack depth %ld, \n",(heap_data.c->stk-heap_data.c->stk_start)+2);
+	//printf("stack depth %ld, \n",(heap_data.c->stk-heap_data.c->stk_start)+2);
 	for(u32 y=0;y<(heap_data.c->stk-heap_data.c->stk_start)+2;y++)
 	{
 		tmp = heap_data.c->stk_start[y].s;
-		printf("tmp %ld, bottom %ld, top %ld\n",tmp,bottom, top);
+		//printf("tmp %ld, bottom %ld, top %ld\n",tmp,bottom, top);
 		if ( (tmp>=bottom)&&(tmp<top) )
 		{
 			variables[x].x = (s64)tmp-(u64)heap_data.h;
@@ -647,7 +647,7 @@ garbage_collect(u64 last_requested_size)
 			x++;
 		}
 	}
-	printf("x %ld, \n",x);
+	//printf("x %ld, \n",x);
 	
 	// TODO record stack vars (maybe locals) by pointer
 	
@@ -668,7 +668,7 @@ garbage_collect(u64 last_requested_size)
 			}
 			heap_data.h=pTmp;
 			heap_data.t = bucket-1;
-			printf("BOTTOM ADDR %ld, LARGEST ADDR %ld, top %ld\n",(s64)heap_data.h, (s64)heap_data.h+heap_data.t, heap_data.t);
+			//printf("BOTTOM ADDR %ld, LARGEST ADDR %ld, top %ld\n",(s64)heap_data.h, (s64)heap_data.h+heap_data.t, heap_data.t);
 		}
 	}
 	pTmp=0;
@@ -678,7 +678,7 @@ garbage_collect(u64 last_requested_size)
 	
 	for(u32 y=0;y<x;y++)
 	{
-		printf("start moving items\n");
+		//printf("start moving items\n");
 		if(pTmp==HEAP_PTR(variables[y].x)) // same as previous
 		{
 			// overwrite pointer to new location
@@ -702,7 +702,7 @@ garbage_collect(u64 last_requested_size)
 		pCache = pBottom;
 		// overwrite pointer to new location
 		*variables[y].y = (s64)(pBottom);
-		printf("NEWADDR %ld, \n",(s64)*variables[y].y);
+		//printf("NEWADDR %ld, \n",(s64)*variables[y].y);
 		// move pointer forward
 		pBottom+=size;
 	}
