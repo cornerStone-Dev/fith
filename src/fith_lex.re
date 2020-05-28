@@ -115,9 +115,12 @@ loop: // label for looping within the lexxer
 
 static u64 lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else, u32 in_case) // YYCURSOR is defined as a function parameter
 {                                    //
-	u8 * YYMARKER;    // YYMARKER is defined as a local variable
+	u8 *YYMARKER;    // YYMARKER is defined as a local variable
 	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
-	/*const*/ u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
+	/*const*/ u8 *YYCURSOR;    // YYCURSOR is defined as a local variable
+	u8 *start;
+	u8 *finish;
+	u32 word_len=0;
 	u32 num_ifs=0;
 	u32 num_funcs=0;
 	u32 num_loops=0;
@@ -126,7 +129,7 @@ static u64 lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else, u32 in_case) // 
 	YYCURSOR = *YYCURSOR_p;
 
 loop: // label for looping within the lexxer
-
+	start = YYCURSOR;
 	/*!re2c                          // start of re2c block **/
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
@@ -160,47 +163,6 @@ loop: // label for looping within the lexxer
 		num_funcs--;
 		goto loop;
 	}
-	
-	"do" {
-		num_loops++;
-		goto loop;
-	}
-	
-	"loop" {
-		if ( (is_else==3) && (num_loops==0) ){
-			*YYCURSOR_p = YYCURSOR;
-			return 0;
-		}
-		num_loops--;
-		goto loop;
-	}
-
-	"case" {
-		num_case++;
-		goto loop;
-	}
-
-	"end" {
-		if ( (is_else==4) && (num_case==0) ){
-			*YYCURSOR_p = YYCURSOR;
-			return 0;
-		}
-		num_case--;
-		goto loop;
-	}
-
-	"if{" {
-		num_ifs++;
-		goto loop;
-	}
-
-	"else" {
-		if ( (num_ifs==0) && (is_else==0) ){
-			*YYCURSOR_p = YYCURSOR;
-			return 0;
-		}
-		goto loop;
-	}
 
 	"}" {
 		if (num_ifs==0 && ((is_else==0)||(is_else==1)) ){
@@ -214,11 +176,92 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 
-	[a-z{}]+ {
-		goto loop;
+	word {
+		word_len = YYCURSOR-start;
+		finish = YYCURSOR;
+		goto word_processing;
 	}
 
 	*/                               // end of re2c block
+	
+	word_processing:
+	switch(word_len){
+	case 2: // 2 letter words
+	YYCURSOR = start;
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		YYCURSOR = finish;
+		goto loop;
+	}
+
+	"do" {
+		num_loops++;
+		goto loop;
+	}
+	*/                               // end of re2c block
+	break;
+	case 3: // 3 letter words
+	YYCURSOR = start;
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		YYCURSOR = finish;
+		goto loop;
+	}
+
+	"end" {
+		if ( (is_else==4) && (num_case==0) ){
+			*YYCURSOR_p = YYCURSOR;
+			return 0;
+		}
+		num_case--;
+		goto loop;
+	}
+	"if{" {
+		num_ifs++;
+		goto loop;
+	}
+	*/                               // end of re2c block
+	break;
+	case 4: // 4 letter words
+	YYCURSOR = start;
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		YYCURSOR = finish;
+		goto loop;
+	}
+
+	"loop" {
+		if ( (is_else==3) && (num_loops==0) ){
+			*YYCURSOR_p = YYCURSOR;
+			return 0;
+		}
+		num_loops--;
+		goto loop;
+	}
+	"case" {
+		num_case++;
+		goto loop;
+	}
+	"else" {
+		if ( (num_ifs==0) && (is_else==0) ){
+			*YYCURSOR_p = YYCURSOR;
+			return 0;
+		}
+		goto loop;
+	}
+	*/                               // end of re2c block
+	break;
+	default: goto loop;
+	}
 }
 
 // sub-lexxer for dealing with word.
@@ -618,6 +661,16 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	}
 	"again" {
 		*YYCURSORout = (c->cstk-2)->s;
+		return 0;
+	}
+	"strdup" { // might move to a library
+		STACK_CHECK_DOWN_R(-1)
+		u8 *buff;
+		u64 size;
+		size = strlen((const char *)(c->stk-1)->s)+1;
+		buff = malloc(size);
+		memmove(buff, (c->stk-1)->s, size);
+		(c->stk-1)->s = buff;
 		return 0;
 	}
 	"debug" {
@@ -1054,13 +1107,24 @@ loop: // label for looping within the lexxer
 	}
 
 	"+s" { // string concatenation
+		stringCat:
 		STACK_CHECK_DOWN(-2)
 		c->stk--;
+		u8 *ret;
+		//u8 *readthis = (c->stk-1);
 		u64 string1Len = strlen((const char *)(c->stk-1)->s);
 		u64 string2Len = strlen((const char *)c->stk->s);
-		(c->stk-1)->s = heap_realloc((c->stk-1)->s,
+		//printf("Dead here1?\n");
+		ret = heap_realloc((c->stk-1)->s,
 						              string1Len+string2Len+1 );
+		if (ret==0){/*YYCURSOR=start;*/c->stk++;goto stringCat;}
+		
+		//printf("Dead here2?\n");
+		//printf("Dead here3?\n");
+		(c->stk-1)->s = ret;
+		//printf("Dead here3?\n");
 		memmove(((c->stk-1)->s+string1Len), c->stk->s, string2Len+1);
+		//printf("Dead here4?\n");
 		goto loop;
 	}
 

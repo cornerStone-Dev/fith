@@ -149,7 +149,7 @@ do random 0xFFFF & 100 < if{ 'leaving loop' p leave } loop 'after loop' p
 clear -2
 \debug
 ( top of stack value )  case
-( top of stack value )	-1 == ( IS THIS NOT ZERO-> ) if{ 'negative one' p  }
+( top of stack value )	-1 == ( IF THIS IS NOT ZERO-> ) if{ 'negative one' p  }
 ( top of stack value )	 0 == if{ 'zero' p }
 ( top of stack value )	 1 == if{ 'one' p  }
 ( top of stack value )	-2 == if{ 'negative two' p }
@@ -167,6 +167,14 @@ dup -1 == if{ 'negative one' p
 
 clear \debug 
 
+
+'start' =string
+30000 =i do
+
+	string 'more string to add MAKE IT SUPER LONG ' +s =string
+	i 0 == if{ leave } 1-=i
+
+loop
 
 (
 
