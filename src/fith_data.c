@@ -5,7 +5,7 @@ typedef struct heap_data_s {
 	u8 *h;
 	u8 *cache;
 	u8 *fix_me;
-	Context *c;
+	Context1 *c;
 	u64 i;
 	u64 b;
 	u64 t;
@@ -638,12 +638,12 @@ garbage_collect(u64 last_requested_size)
 	//printf("stack depth %ld, \n",(heap_data.c->stk-heap_data.c->stk_start)+2);
 	for(u32 y=0;y<(heap_data.c->stk-heap_data.c->stk_start)+2;y++)
 	{
-		tmp = heap_data.c->stk_start[y].s;
+		tmp = heap_data.c->stk_start[y].i;
 		//printf("tmp %ld, bottom %ld, top %ld\n",tmp,bottom, top);
 		if ( (tmp>=bottom)&&(tmp<top) )
 		{
 			variables[x].x = (s64)tmp-(u64)heap_data.h;
-			variables[x].y = &heap_data.c->stk_start[y].s;
+			variables[x].y = (s64 *)&heap_data.c->stk_start[y].s;
 			x++;
 		}
 	}
@@ -672,6 +672,7 @@ garbage_collect(u64 last_requested_size)
 		}
 	}
 	pTmp=0;
+	pCache=0;
 
 	// starting at bottom, copy down all valid pointers
 	pBottom = (u8 *)(heap_data.b + heap_data.h);

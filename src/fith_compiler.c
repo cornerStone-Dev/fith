@@ -27,10 +27,10 @@ typedef struct Xoken Token;
 typedef union data_s Data;
 
 typedef union data_s {
-	u8 *   s;
+	u8     *s;
 	s64    i;
 	f64    d;
-	Data * v;
+	Data   *v;
 	s32    fd[2];
 } Data;
 
@@ -50,7 +50,7 @@ typedef struct stringLitList{
 	u8 * buff[512];
 } stringLitList;
 
-typedef struct context_s{
+typedef struct context1_s{
 	Data *        stk;
 	Data *        stk_start;
 	Data *        cstk;
@@ -58,18 +58,32 @@ typedef struct context_s{
 	u8 *          buff_start;
 	u8 *          out;
 	u8 *          yycur;
+	u8 *          source_code;
 	u8 *          stecpot;
 	struct        timespec time;
 	u32           line_num;
 	u8            is_def;
+	u8            is_customWord;
 	u8            is_fp;
 	u8            is_step;
 	u8            printed_error;
 	u8            word_flags;
 	u8            in_case;
 	u8            file_name_buff[512];
-} Context;
+} Context1;
 
+typedef struct context2_s{
+	Data *        Stub;
+} Context2;
+
+typedef struct context3_s{
+	Data *        Stub;
+} Context3;
+
+typedef struct{
+	Data *sp;
+	Data tos;
+} Registers;
 
 /* function prototypes */
 static void
@@ -405,21 +419,56 @@ if (c->stk<c->stk_end) \
 } else \
 { printf("stack overflow!!!\n"); }
 
+//~ static s8
+//~ check_up(Data *stk, Data *start,s32 x)
+//~ {
+	//~ s8 tmp = ((((s64)(stk - start))+(x))>FITH_STACK_MAX);
+	//~ if(tmp){printf("stack overflow!!!\n");}
+	//~ return tmp;
+//~ }
+
+//~ static s8
+//~ check_down(Data *stk, Data *start,s32 x)
+//~ {
+	//~ s8 tmp = ((((s64)(stk - start))+(x))<0);
+	//~ if(tmp){printf("stack underflow!!!\n");}
+	//~ return tmp;
+//~ }
+
+
 #define STACK_CHECK(x) \
-if ( (((c->stk - c->stk_start)+(x))<0)){printf("stack underflow!!!\n"); goto loop;} \
-else if ((((c->stk - c->stk_start)+(x))>374)){printf("stack overflow!!!\n"); goto loop;}
+if ( (((r.sp - c->stk_start)+(x))<0)){printf("stack underflow!!!\n"); goto loop;} \
+else if ((((r.sp - c->stk_start)+(x))>374)){printf("stack overflow!!!\n"); goto loop;}
+
+//~ #define STACK_CHECK_DOWN(x) 
+//~ if ( check_down(r.sp,c->stk_start, (x) ) ){ goto loop;}
+
+//~ #define STACK_CHECK_UP(x) 
+//~ if ( check_up(r.sp,c->stk_start, (x) ) ){ goto loop;}
 
 #define STACK_CHECK_DOWN(x) \
-if ( ((((s64)(c->stk - c->stk_start))+(x))<0) ){printf("stack underflow!!!\n"); goto loop;}
+if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))<0), 0) ){/*printf("stack underflow!!!\n");*/ goto stack_down_print;}
 
 #define STACK_CHECK_UP(x) \
-if ( ((((s64)(c->stk - c->stk_start))+(x))>FITH_STACK_MAX) ){printf("stack overflow!!!\n"); goto loop;}
+if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))>FITH_STACK_MAX), 0) ){/*printf("stack overflow!!!\n");*/ goto stack_up_print;}
+
+//~ #define STACK_CHECK_DOWN_R(x) 
+//~ if ( check_down(r.sp,c->stk_start, (x) ) ){  return tos;}
+
+//~ #define STACK_CHECK_UP_R(x) 
+//~ if ( check_up(r.sp,c->stk_start, (x) ) ){  return tos;}
+
+//~ #define STACK_CHECK_DOWN_R(x) 
+//~ if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))<0), 0) ){/*printf("stack underflow!!!\n");*/ goto stack_down_print;}
+
+//~ #define STACK_CHECK_UP_R(x) 
+//~ if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))>FITH_STACK_MAX), 0) ){/*printf("stack overflow!!!\n");*/ goto stack_up_print;}
 
 #define STACK_CHECK_DOWN_R(x) \
-if ( ((((s64)(c->stk - c->stk_start))+(x))<0) ){printf("stack underflow!!!\n"); return 0;}
+if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))<0), 0) ){printf("stack underflow!!!\n"); return r;}
 
 #define STACK_CHECK_UP_R(x) \
-if ( ((((s64)(c->stk - c->stk_start))+(x))>FITH_STACK_MAX) ){printf("stack overflow!!!\n"); return 0;}
+if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))>FITH_STACK_MAX), 0) ){printf("stack overflow!!!\n"); return r;}
 
 
 #include "fith_avl.c"
@@ -440,9 +489,10 @@ int main(int argc, char **argv)
 	unsigned char * output = output_string;
 	//u8 dirName[512];
 	
-	int tmp_token;
 	u32 x, inputLen,z;
-	Context c = {0};
+	Context1 c = {0};
+	Context2 c2 = {0};
+	Registers r = {0};
 	FILE * pFile;
 	DIR *d=0;
 	struct dirent *dir;
@@ -451,6 +501,7 @@ int main(int argc, char **argv)
 	c.out = output;
 	c.buff_start = output_string_base;
 	c.buff = output_string_base;
+	r.sp = stack;
 	c.stk = stack;
 	c.stk_start = stack;
 	c.cstk = cstack;
@@ -503,20 +554,20 @@ int main(int argc, char **argv)
 						//printf("strBuff: %s\n", strBuff);
 						if (!(strncmp((const char *)strBuff, ".dump", 5)))
 						{
-							//*(c.buff_start) = '\000';
-							//printf("xxx: %s end\n", output_string_base);
-							//printf("%s",output_string_base);
-							print_code(output_string_base, c.buff_start-output_string_base);
+							//*(c.buff) = '\000';
+							//printf("xxx: %s end\n", c.buff_start);
+							//printf("%s",c.buff_start);
+							print_code(c.buff_start, c.buff-c.buff_start);
 							continue;
 						}
 						if (!(strncmp((const char *)strBuff, ".save", 5)))
 						{
-							*(c.buff_start) = '\000';
+							*(c.buff) = '\000';
 							pFile = fopen ( "session.fith", "w" );
 							if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
-							fwrite (output_string_base,
+							fwrite (c.buff_start,
 								sizeof(char),
-								c.buff_start-output_string_base,
+								c.buff-c.buff_start,
 								pFile);
 							fflush (pFile);
 							fclose (pFile);
@@ -524,29 +575,29 @@ int main(int argc, char **argv)
 							continue;
 						}
 						
-						data = c.buff_start;
+						data = c.buff;
 						z=0;
 						if((*strBuff!='\n')&&(*strBuff!='.')){
 							while(strBuff[z]!=3){
-								*c.buff_start=strBuff[z];
+								*c.buff=strBuff[z];
 								z++;
-								c.buff_start++;
+								c.buff++;
 							}
 						}
 						//printf("data: %s\n", strBuff);
 						if(c.is_fp)
 						{
-							*(c.buff_start) = 'f';
-							*(c.buff_start+1) = '.';
-							*(c.buff_start+2) = '\003';
+							*(c.buff) = 'f';
+							*(c.buff+1) = '.';
+							*(c.buff+2) = '\003';
 						} else {
-							*(c.buff_start) = '.';
-							*(c.buff_start+1) = '\003';
+							*(c.buff) = '.';
+							*(c.buff+1) = '\003';
 						}
-						do {
-							tmp_token = lex(data, &c);
-						} while (tmp_token != 0);
-						*(c.buff_start) = 3;
+						c.source_code = data;
+						r = lex(&c, r, &c2);
+
+						*(c.buff) = 3;
 					}
 				}
 				break;
@@ -558,7 +609,7 @@ int main(int argc, char **argv)
 				one_file_return:
 				break;
 			}
-			c.buff_start = output_string_base;
+			c.buff = c.buff_start;
 		}
 	}
 	
@@ -604,12 +655,9 @@ int main(int argc, char **argv)
 		
 		data = load_file(c.file_name_buff, 0);
 		
-		do {
-			tmp_token = lex(data, &c);
-
-			//Parse(pEngine, tmp_token, token);
-			
-		} while (tmp_token != 0);
+		c.source_code = data;
+		
+		r = lex(&c, r, &c2);
 
 		}
 		if (c.is_def)

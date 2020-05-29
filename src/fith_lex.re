@@ -265,14 +265,15 @@ loop: // label for looping within the lexxer
 }
 
 // sub-lexxer for dealing with word.
-static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YYCURSOR is defined as a function parameter
+static Registers lex_word(Context1 *c, Registers r, u8 **YYCURSORout, u64 len) // YYCURSOR is defined as a function parameter
 {                                    //
 	u8 * YYMARKER;    // YYMARKER is defined as a local variable
 	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
-	/*const*/ //u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
+	u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
 	//u8 * start;
 	
-	//YYCURSOR = *YYCURSOR_p;
+	c->is_customWord =0;
+	YYCURSOR = c->source_code;
 
 //loop: // label for looping within the lexxer
 	//start = YYCURSOR;
@@ -284,15 +285,17 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { // not a predefined token
-		return 1;
+		c->is_customWord =1;
+		return r;
 	} //   default rule with its semantic action start =YYCURSOR;
 
 	"p" {
 		STACK_CHECK_DOWN_R(-1)
-		c->stk--;
-		printf("%s",(const char *)c->stk->s);
+		r.sp--;
+		printf("%s",(const char *)r.tos.s);
 		printf("\n");
-		return 0;
+		r.tos.i = r.sp->i;
+		return r;
 	}
 	*/                               // end of re2c block
 	break;
@@ -302,14 +305,15 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { // not a predefined token
-		return 1;
+		c->is_customWord =1;
+		return r;
 	} //   default rule with its semantic action start =YYCURSOR;
 
 	"or" { // "||"
 		STACK_CHECK_DOWN_R(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i||c->stk->i;
-		return 0;
+		r.sp--;
+		r.tos.i = r.sp->i||r.tos.i;
+		return r;
 	}
 	"do" {
 		// save top of loop
@@ -320,7 +324,7 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		// save end of loop
 		c->cstk->s = YYCURSOR;
 		c->cstk++;
-		return 0;
+		return r;
 	}
 	*/                               // end of re2c block
 	break;
@@ -330,97 +334,99 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { // not a predefined token
-		return 1;
+		c->is_customWord =1;
+		return r;
 	} //   default rule with its semantic action start =YYCURSOR;
 
 	"and" { // "&&"
 		STACK_CHECK_DOWN_R(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i&&c->stk->i;
-		return 0;
+		r.sp--;
+		r.tos.i = r.sp->i&&r.tos.i;
+		return r;
 	}
 	"not" {
 		STACK_CHECK_DOWN_R(-1)
-		(c->stk-1)->i = !((c->stk-1)->i);
-		return 0;
+		r.tos.i = !r.tos.i;
+		return r;
 	}
 	"dup" {
 		STACK_CHECK_DOWN_R(-1)
 		STACK_CHECK_UP_R(1)
-		c->stk->i = (c->stk-1)->i;
-		c->stk++;
-		return 0;
+		r.sp->i = r.tos.i;
+		r.sp++;
+		return r;
 	}
 	"dep" {
 		STACK_CHECK_UP_R(1)
-		c->stk->i = c->stk-c->stk_start;
-		c->stk++;
-		return 0;
+		r.sp->i = r.tos.i;
+		r.tos.i = r.sp - c->stk_start;
+		r.sp++;
+		return r;
 	}
 	"rot" {
 		s64 tmp;
 		STACK_CHECK_DOWN_R(-3)
-		tmp = (c->stk-3)->i;
-		(c->stk-3)->i = (c->stk-2)->i;
-		(c->stk-2)->i = (c->stk-1)->i;
-		(c->stk-1)->i = tmp;
-		return 0;
+		tmp = (r.sp-2)->i;
+		(r.sp-2)->i = (r.sp-1)->i;
+		(r.sp-1)->i = r.tos.i;
+		r.tos.i = tmp;
+		return r;
 	}
 	"abs" {
 		STACK_CHECK_DOWN_R(-1)
-		(c->stk-1)->i=labs((c->stk-1)->i);
-		return 0;
+		r.tos.i=labs(r.tos.i);
+		return r;
 	}
 	"i2f" {
 		STACK_CHECK_DOWN_R(-1)
-		(c->stk-1)->d=(c->stk-1)->i;
-		return 0;
+		r.tos.d=r.tos.i;
+		return r;
 	}
 	"i2s" {
 		STACK_CHECK_DOWN_R(-1)
 		// save off value
-		c->stk->i=(c->stk-1)->i;
+		s64 tmp=r.tos.i;
 		// get string
-		(c->stk-1)->s = heap_malloc(24);
-		sprintf((char *)(c->stk-1)->s, "%ld", c->stk->i);
-		return 0;
+		r.tos.s = heap_malloc(24);
+		sprintf((char *)r.tos.s, "%ld", tmp);
+		return r;
 	}
 	"f2i" {
 		STACK_CHECK_DOWN_R(-1)
-		(c->stk-1)->i=(c->stk-1)->d;
-		return 0;
+		r.tos.i=r.tos.d;
+		return r;
 	}
 	"f2s" {
 		STACK_CHECK_DOWN_R(-1)
 		// save off value
-		c->stk->d=(c->stk-1)->d;
+		f64 tmp=r.tos.d;
 		// get string
-		(c->stk-1)->s = heap_malloc(24);
-		sprintf((char *)(c->stk-1)->s, "%f", c->stk->d);
-		return 0;
+		r.tos.s = heap_malloc(24);
+		sprintf((char *)r.tos.s, "%f", tmp);
+		return r;
 	}
 	"s2i" {
 		STACK_CHECK_DOWN_R(-1)
-		(c->stk-1)->i = strtol( (const char *)(c->stk-1)->s, NULL, 0);
-		return 0;
+		r.tos.i = strtol( (const char *)r.tos.s, NULL, 0);
+		return r;
 	}
 	"s2f" {
 		STACK_CHECK_DOWN_R(-1)
-		(c->stk-1)->d = atof( (const char *)(c->stk-1)->s );
-		return 0;
+		r.tos.d = atof( (const char *)r.tos.s );
+		return r;
 	}
 	"rev" {
 		s64 tmp, num;
 		s64 *start, *end;
 		STACK_CHECK_DOWN_R(-1)
-		num = (c->stk-1)->i;
-		if( (c->stk - c->stk_start-1) < num ){
+		num = r.tos.i;
+		if( (r.sp - c->stk_start-1) < num ){
 			printf("rev : stack underflow avoided!!!\n");
-			return 0;
+			return r;
 		}
-		c->stk-=1;
-		start = (s64 *)c->stk - num;
-		end = (s64 *)c->stk - 1;
+		
+		start = (s64 *)r.sp - num;
+		end = (s64 *)r.sp - 1;
 		// reverse items
 		while(start<end){
 			tmp = *start;
@@ -429,16 +435,20 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 			start++;
 			end--;
 		}
-		return 0;
+		r.sp-=1;
+		r.tos.i = r.sp->i;
+		return r;
 	}
 	"if{" {
 		STACK_CHECK_DOWN_R(-1)
-		c->stk--;
-		if(c->stk->i==0){ // false
+		r.sp--;
+		s64 tmp = r.tos.i;
+		r.tos.i = r.sp->i;
+		if(tmp==0){ // false
 			if(c->in_case){
-				// duplicate value for next test
-				c->stk->i = (c->stk-1)->i;
-				c->stk++;
+				// "duplicate" value for next test
+				// pushes value into range of stack
+				r.sp++;
 			}
 			YYCURSOR-=lex_if_else(&YYCURSOR, 0, 0);
 			*YYCURSORout=YYCURSOR;
@@ -448,15 +458,16 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 			// re-write ending for case statement
 			lex_if_else(&YYCURSOR, 0, 1);
 			// drop auxilary test value
-			c->stk--;
+			r.sp--;
+			r.tos.i = r.sp->i;
 		}
-		return 0;
+		return r;
 	}
 	"end" {
 		// clear flag
 		c->in_case=0;
 		c->cstk-=2;
-		return 0;
+		return r;
 	}
 	*/                               // end of re2c block
 	break;
@@ -466,65 +477,71 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { // not a predefined token
-		return 1;
+		c->is_customWord =1;
+		return r;
 	} //   default rule with its semantic action start =YYCURSOR;
 
 	"call" {
 		STACK_CHECK_DOWN_R(-1)
-		c->stk--;
+		r.sp--;
 		// save off return
 		c->cstk->s = (u8 *)(((u64)YYCURSOR)|0x8000000000000000);
 		c->cstk++;
 		// jump to function
-		*YYCURSORout = c->stk->s;
+		*YYCURSORout = r.tos.s;
+		r.tos.i = r.sp->i;
 		// enter scope
 		enter_scope();
-		return 0;
+		return r;
 	}
 	"load" {
 		STACK_CHECK_DOWN_R(-1)
-		c->stk--;
-		(c->stk+1)->s = load_file(c->stk->s,1);
+		r.sp--;
+		u8 *tmp = load_file(r.tos.s,1);
+		r.tos.i = r.sp->i;
 		// save off return in command stack
 		c->cstk->s = YYCURSOR;
 		c->cstk++;
-		*YYCURSORout = (c->stk+1)->s;
-		return 0;
+		*YYCURSORout = tmp;
+		return r;
 	}
 	"over" {
 		STACK_CHECK_DOWN_R(-2)
 		STACK_CHECK_UP_R(1)
-		c->stk->i = (c->stk-2)->i;
-		c->stk++;
-		return 0;
+		r.sp->i = r.tos.i;
+		r.tos.i = (r.sp-1)->i;
+		r.sp++;
+		return r;
 	}
 	"pick" {
 		STACK_CHECK_DOWN_R(-3)
 		STACK_CHECK_UP_R(1)
-		c->stk->i = (c->stk-3)->i;
-		c->stk++;
-		return 0;
+		r.sp->i = r.tos.i;
+		r.tos.i = (r.sp-2)->i;
+		r.sp++;
+		return r;
 	}
 	"drop" {
-		if(c->stk>c->stk_start)
+		if(r.sp>c->stk_start)
 		{
-			c->stk--;
+			r.sp--;
+			r.tos.i = r.sp->i;
 		} else {
 		printf("stack underflow!!!\n");}
-		return 0;
+		return r;
 	}
 	"swap" {
 		s64 tmp;
 		STACK_CHECK_DOWN_R(-2)
-		tmp = (c->stk-2)->i;
-		(c->stk-2)->i = (c->stk-1)->i;
-		(c->stk-1)->i = tmp;
-		return 0;
+		tmp = (r.sp-1)->i;
+		(r.sp-1)->i = r.tos.i;
+		r.tos.i = tmp;
+		return r;
 	}
 	"else" {
 		YYCURSOR-=lex_if_else(&YYCURSOR, 1, 0);
 		*YYCURSORout=YYCURSOR;
-		return 0;
+		return r;
 	}
 	"fork" {
 		// fork executes a function in another process. The parent process will
@@ -538,66 +555,71 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 			c->cstk->s = (u8 *)(((u64)"exit")|0x8000000000000000);
 			c->cstk++;
 			// jump to function
-			*YYCURSORout = (c->stk-1)->s;
+			*YYCURSORout = r.tos.s;
+			r.sp-=1;
+			r.tos.i = r.sp->i;
 			// enter scope
 			enter_scope();
-			c->stk-=1;
 		} else {
-			(c->stk-1)->i = res;
+			r.tos.i = res;
 		}
-		return 0;
+		return r;
 	}
 	"exit" {
-		_Exit((c->stk-1)->i);
+		_Exit((r.sp-1)->i);
 	}
 	"free" {
 		STACK_CHECK_DOWN_R(-1)
-		c->stk-=1;
-		free(c->stk->s);
-		return 0;
+		r.sp-=1;
+		free(r.tos.s);
+		r.tos.i = r.sp->i;
+		return r;
 	}
 	"sort" {
 		STACK_CHECK_DOWN_R(-1)
 		s64 num;
-		num = (c->stk-1)->i;
-		if( (c->stk - c->stk_start) < num ){
+		num = r.tos.i;
+		if( (r.sp - c->stk_start) < num ){
 			printf("stack underflow avoided!!!\n");
-			return 0;
+			return r;
 		}
-		c->stk-=1;
+		// TODO TEST
 		if(num>1){
-			INSERTION_SORT_s64((s64 *)(c->stk-num), num);
+			INSERTION_SORT_s64((s64 *)(r.sp-num), num);
 		}
-		return 0;
+		r.sp-=1;
+		r.tos.i = r.sp->i;
+		return r;
 	}
 	"fabs" {
 		STACK_CHECK_DOWN_R(-1)
-		(c->stk-1)->d=fabs((c->stk-1)->d);
-		return 0;
+		r.tos.d=fabs(r.tos.d);
+		return r;
 	}
 	"chan" {
 		STACK_CHECK_UP_R(2)
-		s32 res = socketpair(AF_UNIX, SOCK_STREAM, 0, (c->stk+2)->fd);
+		s32 res = socketpair(AF_UNIX, SOCK_STREAM, 0, (r.sp+2)->fd);
 		if (res < 0)
 		{
 			printf("socketpair error!!!\n");
 		} else {
-			c->stk->i = (c->stk+2)->fd[0];
-			(c->stk+1)->i = (c->stk+2)->fd[1];
-			c->stk+=2;
+			r.sp->i = r.tos.i;
+			(r.sp+1)->i = (r.sp+2)->fd[0];
+			r.tos.i = (r.sp+2)->fd[1];
+			r.sp+=2;
 		}
-		return 0;
+		return r;
 	}
 	"loop" {
 		*YYCURSORout = (c->cstk-2)->s;
-		return 0;
+		return r;
 	}
 	"case" {
 		// duplicate test value if there
 		STACK_CHECK_DOWN_R(-1)
 		STACK_CHECK_UP_R(1)
-		c->stk->i = (c->stk-1)->i;
-		c->stk++;
+		r.sp->i = r.tos.i;
+		r.sp++;
 		// save top of case
 		c->cstk->s = YYCURSOR;
 		c->cstk++;
@@ -607,7 +629,7 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		c->cstk->s = YYCURSOR;
 		c->cstk++;
 		c->in_case=1;
-		return 0;
+		return r;
 	}
 	*/                               // end of re2c block
 	break;
@@ -617,38 +639,40 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { // not a predefined token
-		return 1;
+		c->is_customWord =1;
+		return r;
 	} //   default rule with its semantic action start =YYCURSOR;
 
 	"clear" {
-		c->stk=c->stk_start;
-		return 0;
+		r.sp=c->stk_start;
+		return r;
 	}
 	"sleep" {
 		STACK_CHECK_DOWN_R(-2)
-		c->stk-=2;
-		c->time.tv_sec = (c->stk)->i;
-		c->time.tv_nsec = (c->stk+1)->i;
+		r.sp-=2;
+		c->time.tv_sec = (r.sp+1)->i;
+		c->time.tv_nsec = r.tos.i;
+		r.tos.i = r.sp->i;
 		nanosleep(&c->time, NULL);
-		return 0;
+		return r;
 	}
 	"array" {
 		STACK_CHECK_DOWN_R(-1)
 		// allocate array, 8 byte header
-		(c->stk-1)->i = (c->stk-1)->i*8+8;
+		r.tos.i = r.tos.i*8+8;
 		goto malloc;
-		return 0;
+		return r;
 	}
-	"reads" { // (0fd, 1pBuf, 2sizeof(pBuf))
+	"reads" { // (0fd, 1pBuf, TOS=sizeof(pBuf))
 		STACK_CHECK_DOWN_R(-3)
-		c->stk-=2;
-		(c->stk+2)->i = read((c->stk-1)->i, c->stk->s, (c->stk+1)->i);
-		if ((c->stk+2)->i < 0)
+		r.sp-=2;
+		s32 tmp = read(r.sp->i, (r.sp+1)->s, r.tos.i);
+		if (tmp < 0)
 		{
 			printf("reads error!!!\n");
 		}
-		(c->stk-1)->s = c->stk->s;
-		return 0;
+		r.tos.s = (r.sp+1)->s;
+		return r;
 	}
 	"leave" {
 		// clear flag
@@ -657,21 +681,21 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		*YYCURSORout = (c->cstk-1)->s;
 		// clear top two cntrl stacks entries
 		c->cstk-=2;
-		return 0;
+		return r;
 	}
 	"again" {
 		*YYCURSORout = (c->cstk-2)->s;
-		return 0;
+		return r;
 	}
 	"strdup" { // might move to a library
 		STACK_CHECK_DOWN_R(-1)
 		u8 *buff;
 		u64 size;
-		size = strlen((const char *)(c->stk-1)->s)+1;
+		size = strlen((const char *)r.tos.s)+1;
 		buff = malloc(size);
-		memmove(buff, (c->stk-1)->s, size);
-		(c->stk-1)->s = buff;
-		return 0;
+		memmove(buff, r.tos.s, size);
+		r.tos.s = buff;
+		return r;
 	}
 	"debug" {
 		
@@ -689,39 +713,39 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		}
 		
 		// save off pointers
-		(c->stk+1)->s=c->yycur;
-		(c->stk+2)->s=c->yycur;
+		(r.sp+1)->s=c->yycur;
+		(r.sp+2)->s=c->yycur;
 		//save off character value
-		(c->stk+3)->i = *c->yycur;
+		(r.sp+3)->i = *c->yycur;
 		*c->yycur=')';
 		
 		// find begining and ending of line
 		//if (*line_num>1) {
-		while (*(c->stk+1)->s!='\n'){
-			(c->stk+1)->s--;
+		while (*(r.sp+1)->s!='\n'){
+			(r.sp+1)->s--;
 		}
-		(c->stk+1)->s++;
+		(r.sp+1)->s++;
 		//}
-		while (*(c->stk+2)->s!='\n'){
-				(c->stk+2)->s++;
+		while (*(r.sp+2)->s!='\n'){
+				(r.sp+2)->s++;
 		}
-		(c->stk+2)->s++;
-		//(c->stk+3)->i = *(c->stk+2)->s;
-		//*(c->stk+2)->s=0;
+		(r.sp+2)->s++;
+		//(r.sp+3)->i = *(r.sp+2)->s;
+		//*(r.sp+2)->s=0;
 		
-		//printf("%s", (c->stk+1)->s);
-		print_code((c->stk+1)->s, (c->stk+2)->s-(c->stk+1)->s);
-		//*(c->stk+2)->s=(c->stk+3)->i;
-		*c->yycur=(c->stk+3)->i;
+		//printf("%s", (r.sp+1)->s);
+		print_code((r.sp+1)->s, (r.sp+2)->s-(r.sp+1)->s);
+		//*(r.sp+2)->s=(r.sp+3)->i;
+		*c->yycur=(r.sp+3)->i;
 		
 		if(c->is_fp)
 		{
-			for(int x =0 ; &c->stk_start[x]!=c->stk;x++){
+			for(int x =0 ; &c->stk_start[x]!=r.sp;x++){
 				printf("[%f] ",c->stk_start[x].d);
 			}
 			printf("\n");
 		} else {
-			for(int x =0 ; &c->stk_start[x]!=c->stk;x++){
+			for(int x =0 ; &c->stk_start[x]!=r.sp;x++){
 				printf("[%ld] ",c->stk_start[x].i);
 			}
 			printf("\n");
@@ -730,10 +754,10 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		while (1)
 		{
 			raw_begin();
-			(c->stk+4)->i = fith_fgets(c->file_name_buff, 512, c->out);
+			(r.sp+4)->i = fith_fgets(c->file_name_buff, 512, c->out);
 			raw_end();
 			//if (fgets ((char *)c->file_name_buff, 512, stdin) != NULL )
-			if ((c->stk+4)->i )
+			if ((r.sp+4)->i )
 			{
 				if (!(strncmp((const char *)c->file_name_buff, ".dump", 5)))
 				{
@@ -744,7 +768,7 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 				}
 				if (!(strncmp((const char *)c->file_name_buff, ".exit", 5)))
 				{
-					return 0;
+					return r;
 				}
 				if (!(strncmp((const char *)c->file_name_buff, ".fp", 3)))
 				{
@@ -760,28 +784,28 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 				{
 					*YYCURSORout=c->yycur;
 					c->yycur=0;
-					return 0;
+					return r;
 				}
 				if (!(strncmp((const char *)c->file_name_buff, ".s", 2)))
 				{
 					*YYCURSORout = c->yycur;
 					c->is_step=1;
-					return 0;
+					return r;
 				}
 				c->out = c->buff;
-				(c->stk+5)->i=0;
+				(r.sp+5)->i=0;
 				if((*c->file_name_buff!='\n')&&(*c->file_name_buff!='.')){
-					while(c->file_name_buff[(c->stk+5)->i]!=3){
-						*c->buff=c->file_name_buff[(c->stk+5)->i];
-						(c->stk+5)->i++;
+					while(c->file_name_buff[(r.sp+5)->i]!=3){
+						*c->buff=c->file_name_buff[(r.sp+5)->i];
+						(r.sp+5)->i++;
 						c->buff++;
 					}
 				}
 				//c->buff = (u8*)stpcpy((char *)c->buff, (const char *)c->file_name_buff);
-				(c->stk+5)->s=(u8*)stpcpy((char *)c->buff, " debug");
-				*(c->stk+5)->s=3;
+				(r.sp+5)->s=(u8*)stpcpy((char *)c->buff, " debug");
+				*(r.sp+5)->s=3;
 				*YYCURSORout = c->out;
-				return 0;
+				return r;
 			}
 		}
 	}
@@ -793,7 +817,8 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { // not a predefined token
-		return 1;
+		c->is_customWord =1;
+		return r;
 	} //   default rule with its semantic action start =YYCURSOR;
 
 	"return" {
@@ -805,46 +830,47 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 		*YYCURSORout = (u8 *)(((u64)c->cstk->s)&0x7FFFFFFFFFFFFFFF);
 		// leave scope
 		leave_scope();
-		return 0;
+		return r;
 	}
 	"malloc" {
 		STACK_CHECK_DOWN_R(-1)
 		malloc:
-		(c->stk-1)->s= malloc((c->stk-1)->i);
-		if ((c->stk-1)->s == 0 )
+		r.tos.s= malloc(r.tos.i);
+		if (r.tos.s == 0 )
 		{
 			printf("malloc error!!!\n");
 		}
-		return 0;
+		return r;
 	}
 	"random" {
 		STACK_CHECK_UP_R(1)
-		randomness(8, &c->stk->i);
-		c->stk++;
-		return 0;
+		r.sp->i = r.tos.i;
+		randomness(8, &r.tos.i);
+		r.sp++;
+		return r;
 	}
 	"memcmp" {
 		STACK_CHECK_DOWN_R(-3)
-		c->stk-=2;
-		s32 res = memcmp((c->stk-1)->s,
-											c->stk->s,
-											(c->stk+1)->i);
-		(c->stk-1)->i=res;
-		return 0;
+		r.sp-=2;
+		s32 res = memcmp(r.sp->s,
+						(r.sp+1)->s,
+						r.tos.i);
+		r.tos.i=res;
+		return r;
 	}
 	"writes" { // (0fd, 1pBuf)
 		STACK_CHECK_DOWN_R(-2)
-		c->stk-=2;
+		r.sp-=2;
 		s32 res;
-		res = write(c->stk->i,
-					(c->stk+1)->s,
-					strlen((const char *)(c->stk+1)->s)+1);
-
+		res = write((r.sp+1)->i,
+					r.tos.s,
+					strlen((const char *)r.tos.s)+1);
+		r.tos.i = r.sp->i;
 		if (res < 0)
 		{
 			printf("writes error!!!\n");
 		}
-		return 0;
+		return r;
 	}
 	*/                               // end of re2c block
 	break;
@@ -854,38 +880,47 @@ static int lex_word(u8 * YYCURSOR, Context * c, u8 **YYCURSORout, u64 len) // YY
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
 	* { // not a predefined token
-		return 1;
+		c->is_customWord =1;
+		return r;
 	} //   default rule with its semantic action start =YYCURSOR;
 
 	"realloc" {
 		STACK_CHECK_DOWN_R(-2)
-		c->stk--;
+		r.sp--;
 		void *ptr;
-		ptr= realloc((c->stk-1)->s, c->stk->i);
-		if (ptr == 0 )
+		ptr= realloc(r.sp->s, r.tos.i);
+		if (ptr == 0)
 		{
 			printf("realloc error, allocation unchanged!\n");
-			return 0;
+			r.tos.s = r.sp->s;
+			return r;
 		}
-		(c->stk-1)->s = ptr;
-		return 0;
+		r.tos.s = ptr;
+		return r;
 	}
 	*/                               // end of re2c block
 	break;
 	
 	default:
-	return 1;
+	c->is_customWord =1;
+	return r;
 	}
+	
+	//~ stack_up_print:
+	//~ printf("stack overflow!!!\n"); return r;
+	//~ stack_down_print:
+	//~ printf("stack underflow!!!\n");return r;
+	
 }
 
-static int lex(u8 *YYCURSOR, Context *c) // YYCURSOR is defined as a function parameter
+static Registers lex(Context1 *c, Registers r, Context2 *c2) // YYCURSOR is defined as a function parameter
 {                                    //
-	u8 * YYMARKER;    // YYMARKER is defined as a local variable
+	u8 *YYMARKER;    // YYMARKER is defined as a local variable
 	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
-	/*const*/ //u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
-	u8 * start;
+	u8 *YYCURSOR;    // YYCURSOR is defined as a local variable
+	u8 *start;
 	
-	//YYCURSOR = *YYCURSOR_p;
+	YYCURSOR = c->source_code;
 
 loop: // label for looping within the lexxer
 	start = YYCURSOR;
@@ -932,7 +967,7 @@ loop: // label for looping within the lexxer
 		printf("\n");
 		goto loop; 
 	} //   default rule with its semantic action start =YYCURSOR;
-	[\x03] { return 0; }             // EOF rule with 0x03 sentinal
+	[\x03] { return r; }             // EOF rule with 0x03 sentinal
 	
 	[\x04] { // inside case statement, end of if
 		// restore normal ending
@@ -960,22 +995,27 @@ loop: // label for looping within the lexxer
 	}
  
 	integer {
-		c->stk->i = strtol( (const char *)start , NULL, 0);
 		STACK_CHECK_UP(1)
-		c->stk++;
+		//printf("TOS: %ld \n",tos.i);
+		r.sp->i = r.tos.i;
+		//printf("STACK: %ld \n",r.sp->i);
+		r.tos.i = strtol( (const char *)start , NULL, 0);
+		//printf("TOS: %ld \n",r.tos.i);
+		r.sp++;
 		goto loop;
 	}
 	
 	flt {
-		c->stk->d = atof( (const char *)start );
 		STACK_CHECK_UP(1)
-		c->stk++;
+		r.sp->i = r.tos.i;
+		r.tos.d = atof( (const char *)start );
+		r.sp++;
 		goto loop;
 	}
 	
 	string_lit { 
 		start++;
-		c->stk->s = start;
+		u8 *string_start = start;
 		// concatenate all multiline strings
 		if(lex_string_lit_chain(&start))
 		{
@@ -985,18 +1025,25 @@ loop: // label for looping within the lexxer
 			while (start!=YYCURSOR){*start=' ';start++;}
 		}
 		STACK_CHECK_UP(1)
-		c->stk++;
+		r.sp->i = r.tos.i;
+		r.tos.s = string_start;
+		r.sp++;
 		goto loop;
 	}
 	
 	mangled_string_lit {
 		STACK_CHECK_UP(1)
-		c->stk->s = start+1;
-		c->stk++;
+		r.sp->i = r.tos.i;
+		r.tos.s = start+1;
+		r.sp++;
 		goto loop;
 	}
 
 	char_lit {
+		STACK_CHECK_UP(1)
+		r.sp->i = r.tos.i;
+		r.tos.i = *start;
+		r.sp++;
 		goto loop;
 	}
 
@@ -1016,245 +1063,260 @@ loop: // label for looping within the lexxer
 	
 	":" {
 		STACK_CHECK_UP(1)
-		c->stk->s = YYCURSOR;
-		c->stk++;
+		r.sp->i = r.tos.i;
+		r.tos.s = YYCURSOR;
+		r.sp++;
 		YYCURSOR-=lex_if_else(&YYCURSOR, 2, 0); // skip definition
 		goto loop;
 	}
 
 	"&" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i&c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i&r.tos.i;
 		goto loop;
 	}
 
 	"^" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i^c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i^r.tos.i;
 		goto loop;
 	}
 
 	"|" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i|c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i|r.tos.i;
 		goto loop;
 	}
 
 	"==" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = ((c->stk-1)->i)==(c->stk->i);
+		r.sp--;
+		r.tos.i = r.sp->i==r.tos.i;
 		goto loop;
 	}
 
 	"!=" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i!=c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i!=r.tos.i;
 		goto loop;
 	}
 
 	"<" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i<c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i<r.tos.i;
 		goto loop;
 	}
 
 	">" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i>c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i>r.tos.i;
 		goto loop;
 	}
 
 	"<=" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i<=c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i<=r.tos.i;
 		goto loop;
 	}
 
 	">=" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i>=c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i>=r.tos.i;
 		goto loop;
 	}
 
 	"<<" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i<<c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i<<r.tos.i;
 		goto loop;
 	}
 
 	">>" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i>>c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i>>r.tos.i;
 		goto loop;
 	}
 
 	"+" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i+c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i+r.tos.i;
 		goto loop;
 	}
 
 	"+s" { // string concatenation
 		stringCat:
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
+		r.sp--;
 		u8 *ret;
-		//u8 *readthis = (c->stk-1);
-		u64 string1Len = strlen((const char *)(c->stk-1)->s);
-		u64 string2Len = strlen((const char *)c->stk->s);
+		//u8 *readthis = (r.sp-1);
+		u64 string1Len = strlen((const char *)(r.sp-1)->s);
+		u64 string2Len = strlen((const char *)r.sp->s);
 		//printf("Dead here1?\n");
-		ret = heap_realloc((c->stk-1)->s,
+		ret = heap_realloc((r.sp-1)->s,
 						              string1Len+string2Len+1 );
-		if (ret==0){/*YYCURSOR=start;*/c->stk++;goto stringCat;}
+		if (ret==0){/*YYCURSOR=start;*/r.sp++;goto stringCat;}
 		
 		//printf("Dead here2?\n");
 		//printf("Dead here3?\n");
-		(c->stk-1)->s = ret;
+		(r.sp-1)->s = ret;
 		//printf("Dead here3?\n");
-		memmove(((c->stk-1)->s+string1Len), c->stk->s, string2Len+1);
+		memmove(((r.sp-1)->s+string1Len), r.sp->s, string2Len+1);
 		//printf("Dead here4?\n");
 		goto loop;
 	}
 
 	"-" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i-c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i-r.tos.i;
 		goto loop;
 	}
 
 	"/" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i/c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i/r.tos.i;
 		goto loop;
 	}
 	
 	"*" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i*c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i*r.tos.i;
 		goto loop;
 	}
 
 	"+f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = (c->stk-1)->d+c->stk->d;
+		r.sp--;
+		r.tos.d = r.sp->d+r.tos.d;
 		goto loop;
 	}
 
 	"-f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = (c->stk-1)->d-c->stk->d;
+		r.sp--;
+		r.tos.d = r.sp->d-r.tos.d;
 		goto loop;
 	}
 
 	"/f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = (c->stk-1)->d/c->stk->d;
+		r.sp--;
+		r.tos.d = r.sp->d/r.tos.d;
 		goto loop;
 	}
 	
 	"*f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = (c->stk-1)->d*c->stk->d;
+		r.sp--;
+		r.tos.d = r.sp->d*r.tos.d;
 		goto loop;
 	}
 	
 	"==f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = ((c->stk-1)->d)==(c->stk->d);
+		r.sp--;
+		r.tos.d = r.sp->d==r.tos.d;
 		goto loop;
 	}
 
 	"!=f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = (c->stk-1)->d!=c->stk->d;
+		r.sp--;
+		r.tos.d = r.sp->d!=r.tos.d;
 		goto loop;
 	}
 
 	"<f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = (c->stk-1)->d<c->stk->d;
+		r.sp--;
+		r.tos.d = r.sp->d<r.tos.d;
 		goto loop;
 	}
 
 	">f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = (c->stk-1)->d>c->stk->d;
+		r.sp--;
+		r.tos.d = r.sp->d>r.tos.d;
 		goto loop;
 	}
 
 	"<=f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = (c->stk-1)->d<=c->stk->d;
+		r.sp--;
+		r.tos.d = r.sp->d<=r.tos.d;
 		goto loop;
 	}
 
 	">=f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->d = (c->stk-1)->d>=c->stk->d;
+		r.sp--;
+		r.tos.d = r.sp->d>=r.tos.d;
 		goto loop;
 	}
 
 	"%f" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
+		r.sp--;
 		f64 var;
-		var = (c->stk-1)->d/c->stk->d;
-		var = modf(var, &(c->stk-1)->d);
-		(c->stk-1)->d = var * c->stk->d;
+		var = r.sp->d/r.tos.d;
+		var = modf(var, &r.sp->d);
+		r.tos.d = var * r.tos.d;
 		goto loop;
 	}
 
 	"%" {
 		STACK_CHECK_DOWN(-2)
-		c->stk--;
-		(c->stk-1)->i = (c->stk-1)->i%c->stk->i;
+		r.sp--;
+		r.tos.i = r.sp->i%r.tos.i;
 		goto loop;
 	}
 
 	"." {
-		for(int x =0 ; &c->stk_start[x]!=c->stk;x++){
-			printf("(%ld) ",c->stk_start[x].i);
+		u32 x=1;
+		if(&c->stk_start[0]!=r.sp){
+			for(; &c->stk_start[x]!=r.sp;x++){
+				printf("(%ld) ",c->stk_start[x].i);
+			}
+			printf("(%ld) ",r.tos.i);
 		}
+		//~ for(; &c->stk_start[x]!=r.sp;x++){
+			//~ printf("(%ld) ",c->stk_start[x].i);
+		//~ }
 		printf("\n");
 		goto loop;
 	}
 	
 	".f" {
-		for(int x =0 ; &c->stk_start[x]!=c->stk;x++){
-			printf("(%f) ",c->stk_start[x].d);
+		u32 x=1;
+		if(&c->stk_start[0]!=r.sp){
+			for(; &c->stk_start[x]!=r.sp;x++){
+				printf("(%f) ",c->stk_start[x].d);
+			}
+			printf("(%f) ",r.tos.d);
 		}
+		//~ for(int x =0 ; &c->stk_start[x]!=r.sp;x++){
+			//~ printf("(%f) ",c->stk_start[x].d);
+		//~ }
 		printf("\n");
 		goto loop;
 	}
 	
 	"~" {
 		STACK_CHECK_DOWN(-1)
-		(c->stk-1)->i = ~((c->stk-1)->i);
+		r.tos.i = ~r.tos.i;
 		goto loop;
 	}
 
@@ -1335,41 +1397,48 @@ loop: // label for looping within the lexxer
 	// new work flow. Check locals if any. Check functions. Check globals. Nothing found.
 	word {
 		//get_function_addr
-		s64 *varP, tmp;
+		s64 *varP, tmp, val;
+		u8 *ptr;
 		s32 res;
 		u8 flags;
-		if (lex_word(start, c, &YYCURSOR, (YYCURSOR - start))){
+		c->source_code = start;
+		r = lex_word(c, r, &YYCURSOR, (YYCURSOR - start));
+		if ( c->is_customWord ){
 			switch(c->word_flags&0x0F){
 				case 0: // no flags
 				// check locals
 				if(scope_index>0&&(vars[scope_index]!=0)){
-					res = get_variable(start, (YYCURSOR - start), &c->stk->i, scope_index);
+					res = get_variable(start, (YYCURSOR - start), &val, scope_index);
 					if (res!=0){
 						STACK_CHECK_UP(1)
-						c->stk++;
+						r.sp->i = r.tos.i;
+						r.tos.i = val;
+						r.sp++;
 						goto loop;
 					}
 				}
 				// else
 				// check if its a function
-				c->stk->s = (u8 *)get_function_addr(start, (YYCURSOR - start));
-				if (c->stk->s!=0){
+				ptr = (u8 *)get_function_addr(start, (YYCURSOR - start));
+				if (ptr!=0){
 					// IT IS A FUNCTION!!!
 					// save off return
 					c->cstk->s = (u8 *)(((u64)YYCURSOR)|0x8000000000000000);
 					c->cstk++;
 					// jump to function
-					YYCURSOR = c->stk->s;
+					YYCURSOR = ptr;
 					// enter scope
 					enter_scope();
 					goto loop;
 				}
 				// else
 				// check if its a global
-				res = get_variable(start, (YYCURSOR - start), &c->stk->i, 0);
+				res = get_variable(start, (YYCURSOR - start), &val, 0);
 				if (res!=0){
 					STACK_CHECK_UP(1)
-					c->stk++;
+					r.sp->i = r.tos.i;
+					r.tos.i = val;
+					r.sp++;
 					goto loop;
 				}
 				// nothing
@@ -1380,35 +1449,42 @@ loop: // label for looping within the lexxer
 				case 1: // assignment
 				c->word_flags=0;
 				STACK_CHECK_DOWN(-1)
-				c->stk--;
+				r.sp--;
 				// will try to insert unique name, if fails will update value only
-				save_variable(start, (YYCURSOR - start), c->stk->i, 0);
+				save_variable(start, (YYCURSOR - start), r.tos.i, 0);
+				r.tos.i = r.sp->i;
 				break;
 				case 2: // get address
 				c->word_flags=0;
 				// check locals
 				if(scope_index>0&&(vars[scope_index]!=0)){
-					c->stk->s = (u8 *)get_variable_addr(start, (YYCURSOR - start), scope_index, &tmp);
-					if (c->stk->s!=0){
+					ptr = (u8 *)get_variable_addr(start, (YYCURSOR - start), scope_index, &tmp);
+					if (ptr!=0){
 						STACK_CHECK_UP(1)
-						c->stk++;
+						r.sp->i = r.tos.i;
+						r.tos.s = ptr;
+						r.sp++;
 						goto loop;
 					}
 				}
 				// else
 				// check if its a function
-				c->stk->s = (u8 *)get_function_addr(start, (YYCURSOR - start));
-				if (c->stk->s!=0){
+				ptr = (u8 *)get_function_addr(start, (YYCURSOR - start));
+				if (ptr!=0){
 					STACK_CHECK_UP(1)
-					c->stk++;
+					r.sp->i = r.tos.i;
+					r.tos.s = ptr;
+					r.sp++;
 					goto loop;
 				}
 				// else
 				// check if its a global
-				c->stk->s = (u8 *)get_variable_addr(start, (YYCURSOR - start), 0, &tmp);
-				if (c->stk->s!=0){
+				ptr = (u8 *)get_variable_addr(start, (YYCURSOR - start), 0, &tmp);
+				if (ptr!=0){
 					STACK_CHECK_UP(1)
-					c->stk++;
+					r.sp->i = r.tos.i;
+					r.tos.s = ptr;
+					r.sp++;
 					goto loop;
 				}
 				// nothing
@@ -1419,15 +1495,18 @@ loop: // label for looping within the lexxer
 				case 3: // assignment of constant
 				c->word_flags=0;
 				STACK_CHECK_DOWN(-1)
-				c->stk--;
+				r.sp--;
 				// will try to insert unique name, if fails will update value only
-				save_variable(start, (YYCURSOR - start), c->stk->i, ((u64)0x80)<<56);
+				save_variable(start, (YYCURSOR - start), r.tos.i, ((u64)0x80)<<56);
+				r.tos.i = r.sp->i;
 				break;
 				case 4: // plus equals operator
 				flags=c->word_flags;
 				c->word_flags=0;
 				STACK_CHECK_DOWN(-1)
-				c->stk--;
+				r.sp--;
+				val = r.tos.i;
+				r.tos.i = r.sp->i;
 				varP=0;
 				// check locals
 				if(scope_index>0&&(vars[scope_index]!=0)){
@@ -1458,34 +1537,34 @@ loop: // label for looping within the lexxer
 				// modify
 				switch(flags>>4){
 					case 0:
-					tmp = tmp+c->stk->i;
+					tmp = tmp+val;
 					break;
 					case 1:
-					tmp = tmp-c->stk->i;
+					tmp = tmp-val;
 					break;
 					case 2:
-					tmp = tmp*c->stk->i;
+					tmp = tmp*val;
 					break;
 					case 3:
-					tmp = tmp/c->stk->i;
+					tmp = tmp/val;
 					break;
 					case 4:
-					tmp = tmp%c->stk->i;
+					tmp = tmp%val;
 					break;
 					case 5:
-					tmp = tmp&c->stk->i;
+					tmp = tmp&val;
 					break;
 					case 6:
-					tmp = tmp|c->stk->i;
+					tmp = tmp|val;
 					break;
 					case 7:
-					tmp = tmp^c->stk->i;
+					tmp = tmp^val;
 					break;
 					case 8:
-					tmp = tmp>>c->stk->i;
+					tmp = tmp>>val;
 					break;
 					case 9:
-					tmp = tmp<<c->stk->i;
+					tmp = tmp<<val;
 					break;
 				}
 				// store
@@ -1502,7 +1581,12 @@ loop: // label for looping within the lexxer
 		goto loop;
 	}
 	*/                               // end of re2c block
-}  
+
+	stack_up_print:
+	printf("stack overflow!!!\n"); goto loop;
+	stack_down_print:
+	printf("stack underflow!!!\n"); goto loop;
+}
 
 
 
