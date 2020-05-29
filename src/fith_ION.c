@@ -4,13 +4,22 @@
 
 static u32 ION_getLen(const u8 *input)
 {
+	u32 *p=(u32*)input;
 	u32 fson_length;
 
 	// get length of ION
-	fson_length= (((*input)&0x3F)<<24);
-	fson_length+=((*(input+1))<<16);
-	fson_length+=((*(input+2))<<8);
-	fson_length+= (*(input+3));
+	//~ fson_length= (((*input)&0x3F)<<24);
+	//~ fson_length+=((*(input+1))<<16);
+	//~ fson_length+=((*(input+2))<<8);
+	//~ fson_length+= (*(input+3));
+	
+	//~ fson_length= (((*input)&0x3F)<<24);
+	//~ fson_length+=((*(input+1))<<16);
+	//~ fson_length+=((*(input+2))<<8);
+	//~ fson_length+= (*(input+3));
+	fson_length = __builtin_bswap32(*p);
+	fson_length&=0x3FFFFFFF;
+	
 	return fson_length;
 }
 
@@ -283,7 +292,6 @@ ION_newValInsert(const u8 *input, const u8 *insert_location, Data val, u32 type)
 	u8 *buffp;
 	u32 fson_length;
 	u32 val_length;
-	u32 key_length;
 	
 	fson_length = ION_getLen(input);
 	cursor+=4;
@@ -322,7 +330,6 @@ ION_newValOverWrite(const u8 *input, const u8 *insert_location, Data val, u32 ty
 	u8 *buffp;
 	u32 fson_length;
 	u32 val_length;
-	u32 key_length;
 	
 	fson_length = ION_getLen(input);
 	cursor+=4;

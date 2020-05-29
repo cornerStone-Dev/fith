@@ -5,11 +5,10 @@
 /*!max:re2c*/                        // directive that defines YYMAXFILL (unused)
 /*!re2c                              // start of re2c block
 	
-	mcm = "(" [^)\x03]* ")"; // WILL NOT WORK ON "**/" ending!!!!
+	mcm = "(" [^)\x03]* ")"; 
 	scm = "\\" [^\n\x03]* "\n";
 	wsp = ([ \n\t\r] | scm | mcm)+; // removed \v
 	//macro = "#" ([^\n] | "\\\n")* "\n";
-	//local_macro = "#@" ([^\n] | "\\\n")* "\n";
 	// integer literals
 	oct = "0" [0-7]*;
 	dec = [1-9][0-9]*;
@@ -26,32 +25,12 @@
 	mangled_string_lit = ['] ([^'\x00\x03] | ([\\] [']))* "\x00";
 	char_lit = [`] ([^`\x03] | ([\\] [`]))* [`];
 	integer = "-"? (oct | dec | hex);
-	lblock =     "{";
-	rblock =     "}";
-	lparen =     "(";
-	rparen =     ")";
-	lbracket =   "[";
-	rbracket =   "]";
-	comma =      ",";
-	star =       "*";
-	atsign =     "@";
-	dollar =     "$";
-	semi =     ";";
-	function =   "fn";
-	function_call = [a-zA-Z_]([a-zA-Z_0-9?!#.[-]|"]")*;
-	function_call_addr = [a-zA-Z_][a-zA-Z_0-9?-]*"@";
-	function_definition = [a-zA-Z_][a-zA-Z_0-9?-]* ":";
-	var = "$" function_call; // push value on stack, if exists
-	var_assign = "=$" function_call; // pop top of stack and assign to value, create variable
-	// json get
-	var_get_json = "$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+; // get JSON string
-	// json set
-	var_assign_array = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+; // assign JSON string
-	var_assign_json_s = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".s"; // assign JSON string
-	var_assign_json_i = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".i"; // assign JSON string
-	var_assign_json_d = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".d"; // assign JSON string
-	var_assign_json_j = "=$" function_call ("."|"[")([a-zA-Z_0-9?#.[-]|"]")+".j"; // assign JSON string
-	var_addr = "@" function_call; // push address on stack
+	word = [a-zA-Z_]([a-zA-Z_0-9?!#.{}[-]|"]")*;
+	function_call_addr = "@" word ;
+	function_definition = word ":";
+	var = "$" word; // push value on stack, if exists
+	var_assign = "=$" word; // pop top of stack and assign to value, create variable
+	var_addr = "@$" word; // push address on stack
 
 	
 */                                   // end of re2c block
@@ -93,6 +72,7 @@ static int lex_string_lit_chain(u8 ** YYCURSOR_p)
 	u8 * YYCURSOR;
 	u8 *start;
 	u8 *startMangledString;
+	u64 len;
 	YYCURSOR = *YYCURSOR_p;
 	startMangledString = YYCURSOR;
 	
@@ -108,10 +88,11 @@ loop: // label for looping within the lexxer
 	//[\x00] { return 1; }             // EOF rule with null sentinal
 	
 	string_lit_chain {
-		*(YYCURSOR-1) = 0;
-		startMangledString = (u8*)stpcpy((char *)startMangledString,
-										(const char *)start);
-		*YYCURSOR_p = startMangledString;
+		len = YYCURSOR-start-1;
+		memmove(startMangledString, start, len);
+		startMangledString+=len;
+		// skip starting tabs to allow formatting
+		while(*YYCURSOR=='\t'){YYCURSOR++;}
 		goto loop;
 	}
 	
@@ -121,9 +102,10 @@ loop: // label for looping within the lexxer
 			*(YYCURSOR-1) = 0;
 			return 0;
 		}
-		*(YYCURSOR-1) = 0;
-		startMangledString = (u8*)stpcpy((char *)startMangledString,
-										(const char *)start);
+		len = YYCURSOR-start-1;
+		memmove(startMangledString, start, len);
+		startMangledString+=len;
+		*startMangledString=0;
 		*YYCURSOR_p = startMangledString;
 		return 1;
 	}
@@ -131,33 +113,40 @@ loop: // label for looping within the lexxer
 	*/                               // end of re2c block
 }
 
-static int lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else) // YYCURSOR is defined as a function parameter
+static u64 lex_if_else(/*const*/ u8 ** YYCURSOR_p, u32 is_else, u32 in_case) // YYCURSOR is defined as a function parameter
 {                                    //
-	u8 * YYMARKER;    // YYMARKER is defined as a local variable
+	u8 *YYMARKER;    // YYMARKER is defined as a local variable
 	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
-	/*const*/ u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
-	/*const*/ //u8 * start;
+	/*const*/ u8 *YYCURSOR;    // YYCURSOR is defined as a local variable
+	u8 *start;
+	u8 *finish;
+	u32 word_len=0;
 	u32 num_ifs=0;
 	u32 num_funcs=0;
+	u32 num_loops=0;
+	u32 num_case=0;
 	
 	YYCURSOR = *YYCURSOR_p;
 
 loop: // label for looping within the lexxer
-	//start = YYCURSOR;
-
+	start = YYCURSOR;
 	/*!re2c                          // start of re2c block **/
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
 									 //
-	* { /*start =YYCURSOR;*/ goto loop; }//   default rule with its semantic action
+	* { goto loop; }//   default rule with its semantic action
 	[\x03] { return 1; }             // EOF rule with null sentinal
 	
 	
-	wsp {
+	(scm | mcm)+ {
 		goto loop;
 	}
 	
 	string_lit {
+		goto loop;
+	}
+	
+	mangled_string_lit {
 		goto loop;
 	}
 	
@@ -174,12 +163,94 @@ loop: // label for looping within the lexxer
 		num_funcs--;
 		goto loop;
 	}
+
+	"}" {
+		if (num_ifs==0 && ((is_else==0)||(is_else==1)) ){
+			if(in_case){
+				*(YYCURSOR-1)=0x04;
+			}
+			*YYCURSOR_p = YYCURSOR;
+			return 0;
+		}
+		num_ifs--;
+		goto loop;
+	}
+
+	word {
+		word_len = YYCURSOR-start;
+		finish = YYCURSOR;
+		goto word_processing;
+	}
+
+	*/                               // end of re2c block
 	
-	"if" {
+	word_processing:
+	switch(word_len){
+	case 2: // 2 letter words
+	YYCURSOR = start;
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		YYCURSOR = finish;
+		goto loop;
+	}
+
+	"do" {
+		num_loops++;
+		goto loop;
+	}
+	*/                               // end of re2c block
+	break;
+	case 3: // 3 letter words
+	YYCURSOR = start;
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		YYCURSOR = finish;
+		goto loop;
+	}
+
+	"end" {
+		if ( (is_else==4) && (num_case==0) ){
+			*YYCURSOR_p = YYCURSOR;
+			return 0;
+		}
+		num_case--;
+		goto loop;
+	}
+	"if{" {
 		num_ifs++;
 		goto loop;
 	}
-	
+	*/                               // end of re2c block
+	break;
+	case 4: // 4 letter words
+	YYCURSOR = start;
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		YYCURSOR = finish;
+		goto loop;
+	}
+
+	"loop" {
+		if ( (is_else==3) && (num_loops==0) ){
+			*YYCURSOR_p = YYCURSOR;
+			return 0;
+		}
+		num_loops--;
+		goto loop;
+	}
+	"case" {
+		num_case++;
+		goto loop;
+	}
 	"else" {
 		if ( (num_ifs==0) && (is_else==0) ){
 			*YYCURSOR_p = YYCURSOR;
@@ -187,41 +258,669 @@ loop: // label for looping within the lexxer
 		}
 		goto loop;
 	}
-	
-	"then" {
-		if (num_ifs==0 && ((is_else==0)||(is_else==1)) ){
-			*YYCURSOR_p = YYCURSOR;
-			return 0;
-		}
-		num_ifs--;
-		goto loop;
-	}
-	
-	//~ "jeach" {
-		//~ num_je++;
-		//~ goto loop;
-	//~ }
-	
-	//~ "jdone" {
-		//~ if ( (is_else==3) && (num_je==0) ){
-			//~ *YYCURSOR_p = YYCURSOR;
-			//~ return 0;
-		//~ }
-		//~ num_je--;
-		//~ goto loop;
-	//~ }
-
 	*/                               // end of re2c block
+	break;
+	default: goto loop;
+	}
 }
 
-static int lex(u8 * YYCURSOR, u32 * line_num, Context * c) // YYCURSOR is defined as a function parameter
+// sub-lexxer for dealing with word.
+static Registers lex_word(Context1 *c, Registers r, u8 **YYCURSORout, u64 len) // YYCURSOR is defined as a function parameter
 {                                    //
 	u8 * YYMARKER;    // YYMARKER is defined as a local variable
 	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
-	/*const*/ //u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
-	u8 * start;
+	u8 * YYCURSOR;    // YYCURSOR is defined as a local variable
+	//u8 * start;
 	
-	//YYCURSOR = *YYCURSOR_p;
+	c->is_customWord =0;
+	YYCURSOR = c->source_code;
+
+//loop: // label for looping within the lexxer
+	//start = YYCURSOR;
+	
+	switch(len-1){
+	case 0: // 1 letter words
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		c->is_customWord =1;
+		return r;
+	} //   default rule with its semantic action start =YYCURSOR;
+
+	"p" {
+		STACK_CHECK_DOWN_R(-1)
+		r.sp--;
+		printf("%s",(const char *)r.tos.s);
+		printf("\n");
+		r.tos.i = r.sp->i;
+		return r;
+	}
+	*/                               // end of re2c block
+	break;
+	case 1: // 2 letter words
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		c->is_customWord =1;
+		return r;
+	} //   default rule with its semantic action start =YYCURSOR;
+
+	"or" { // "||"
+		STACK_CHECK_DOWN_R(-2)
+		r.sp--;
+		r.tos.i = r.sp->i||r.tos.i;
+		return r;
+	}
+	"do" {
+		// save top of loop
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		// find end of loop
+		YYCURSOR-=lex_if_else(&YYCURSOR, 3, 0);
+		// save end of loop
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		return r;
+	}
+	*/                               // end of re2c block
+	break;
+	case 2: // 3 letter words
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		c->is_customWord =1;
+		return r;
+	} //   default rule with its semantic action start =YYCURSOR;
+
+	"and" { // "&&"
+		STACK_CHECK_DOWN_R(-2)
+		r.sp--;
+		r.tos.i = r.sp->i&&r.tos.i;
+		return r;
+	}
+	"not" {
+		STACK_CHECK_DOWN_R(-1)
+		r.tos.i = !r.tos.i;
+		return r;
+	}
+	"dup" {
+		STACK_CHECK_DOWN_R(-1)
+		STACK_CHECK_UP_R(1)
+		r.sp->i = r.tos.i;
+		r.sp++;
+		return r;
+	}
+	"dep" {
+		STACK_CHECK_UP_R(1)
+		r.sp->i = r.tos.i;
+		r.tos.i = r.sp - c->stk_start;
+		r.sp++;
+		return r;
+	}
+	"rot" {
+		s64 tmp;
+		STACK_CHECK_DOWN_R(-3)
+		tmp = (r.sp-2)->i;
+		(r.sp-2)->i = (r.sp-1)->i;
+		(r.sp-1)->i = r.tos.i;
+		r.tos.i = tmp;
+		return r;
+	}
+	"abs" {
+		STACK_CHECK_DOWN_R(-1)
+		r.tos.i=labs(r.tos.i);
+		return r;
+	}
+	"i2f" {
+		STACK_CHECK_DOWN_R(-1)
+		r.tos.d=r.tos.i;
+		return r;
+	}
+	"i2s" {
+		STACK_CHECK_DOWN_R(-1)
+		// save off value
+		s64 tmp=r.tos.i;
+		// get string
+		r.tos.s = heap_malloc(24);
+		sprintf((char *)r.tos.s, "%ld", tmp);
+		return r;
+	}
+	"f2i" {
+		STACK_CHECK_DOWN_R(-1)
+		r.tos.i=r.tos.d;
+		return r;
+	}
+	"f2s" {
+		STACK_CHECK_DOWN_R(-1)
+		// save off value
+		f64 tmp=r.tos.d;
+		// get string
+		r.tos.s = heap_malloc(24);
+		sprintf((char *)r.tos.s, "%f", tmp);
+		return r;
+	}
+	"s2i" {
+		STACK_CHECK_DOWN_R(-1)
+		r.tos.i = strtol( (const char *)r.tos.s, NULL, 0);
+		return r;
+	}
+	"s2f" {
+		STACK_CHECK_DOWN_R(-1)
+		r.tos.d = atof( (const char *)r.tos.s );
+		return r;
+	}
+	"rev" {
+		s64 tmp, num;
+		s64 *start, *end;
+		STACK_CHECK_DOWN_R(-1)
+		num = r.tos.i;
+		if( (r.sp - c->stk_start-1) < num ){
+			printf("rev : stack underflow avoided!!!\n");
+			return r;
+		}
+		
+		start = (s64 *)r.sp - num;
+		end = (s64 *)r.sp - 1;
+		// reverse items
+		while(start<end){
+			tmp = *start;
+			*start = *end;
+			*end = tmp;
+			start++;
+			end--;
+		}
+		r.sp-=1;
+		r.tos.i = r.sp->i;
+		return r;
+	}
+	"if{" {
+		STACK_CHECK_DOWN_R(-1)
+		r.sp--;
+		s64 tmp = r.tos.i;
+		r.tos.i = r.sp->i;
+		if(tmp==0){ // false
+			if(c->in_case){
+				// "duplicate" value for next test
+				// pushes value into range of stack
+				r.sp++;
+			}
+			YYCURSOR-=lex_if_else(&YYCURSOR, 0, 0);
+			*YYCURSORout=YYCURSOR;
+		} else if(c->in_case){ // true
+			// clear flag
+			c->in_case=0;
+			// re-write ending for case statement
+			lex_if_else(&YYCURSOR, 0, 1);
+			// drop auxilary test value
+			r.sp--;
+			r.tos.i = r.sp->i;
+		}
+		return r;
+	}
+	"end" {
+		// clear flag
+		c->in_case=0;
+		c->cstk-=2;
+		return r;
+	}
+	*/                               // end of re2c block
+	break;
+	case 3: // 4 letter words
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		c->is_customWord =1;
+		return r;
+	} //   default rule with its semantic action start =YYCURSOR;
+
+	"call" {
+		STACK_CHECK_DOWN_R(-1)
+		r.sp--;
+		// save off return
+		c->cstk->s = (u8 *)(((u64)YYCURSOR)|0x8000000000000000);
+		c->cstk++;
+		// jump to function
+		*YYCURSORout = r.tos.s;
+		r.tos.i = r.sp->i;
+		// enter scope
+		enter_scope();
+		return r;
+	}
+	"load" {
+		STACK_CHECK_DOWN_R(-1)
+		r.sp--;
+		u8 *tmp = load_file(r.tos.s,1);
+		r.tos.i = r.sp->i;
+		// save off return in command stack
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		*YYCURSORout = tmp;
+		return r;
+	}
+	"over" {
+		STACK_CHECK_DOWN_R(-2)
+		STACK_CHECK_UP_R(1)
+		r.sp->i = r.tos.i;
+		r.tos.i = (r.sp-1)->i;
+		r.sp++;
+		return r;
+	}
+	"pick" {
+		STACK_CHECK_DOWN_R(-3)
+		STACK_CHECK_UP_R(1)
+		r.sp->i = r.tos.i;
+		r.tos.i = (r.sp-2)->i;
+		r.sp++;
+		return r;
+	}
+	"drop" {
+		if(r.sp>c->stk_start)
+		{
+			r.sp--;
+			r.tos.i = r.sp->i;
+		} else {
+		printf("stack underflow!!!\n");}
+		return r;
+	}
+	"swap" {
+		s64 tmp;
+		STACK_CHECK_DOWN_R(-2)
+		tmp = (r.sp-1)->i;
+		(r.sp-1)->i = r.tos.i;
+		r.tos.i = tmp;
+		return r;
+	}
+	"else" {
+		YYCURSOR-=lex_if_else(&YYCURSOR, 1, 0);
+		*YYCURSORout=YYCURSOR;
+		return r;
+	}
+	"fork" {
+		// fork executes a function in another process. The parent process will
+		// skip the next function call. The child process need to have the
+		// return stack modified to exit, returns pid
+		STACK_CHECK_DOWN_R(-1)
+		s32 res = fork();
+		if (res < 0){
+			printf("Fork error!!!\n");
+		} else if (res == 0) {
+			c->cstk->s = (u8 *)(((u64)"exit")|0x8000000000000000);
+			c->cstk++;
+			// jump to function
+			*YYCURSORout = r.tos.s;
+			r.sp-=1;
+			r.tos.i = r.sp->i;
+			// enter scope
+			enter_scope();
+		} else {
+			r.tos.i = res;
+		}
+		return r;
+	}
+	"exit" {
+		_Exit((r.sp-1)->i);
+	}
+	"free" {
+		STACK_CHECK_DOWN_R(-1)
+		r.sp-=1;
+		free(r.tos.s);
+		r.tos.i = r.sp->i;
+		return r;
+	}
+	"sort" {
+		STACK_CHECK_DOWN_R(-1)
+		s64 num;
+		num = r.tos.i;
+		if( (r.sp - c->stk_start) < num ){
+			printf("stack underflow avoided!!!\n");
+			return r;
+		}
+		// TODO TEST
+		if(num>1){
+			INSERTION_SORT_s64((s64 *)(r.sp-num), num);
+		}
+		r.sp-=1;
+		r.tos.i = r.sp->i;
+		return r;
+	}
+	"fabs" {
+		STACK_CHECK_DOWN_R(-1)
+		r.tos.d=fabs(r.tos.d);
+		return r;
+	}
+	"chan" {
+		STACK_CHECK_UP_R(2)
+		s32 res = socketpair(AF_UNIX, SOCK_STREAM, 0, (r.sp+2)->fd);
+		if (res < 0)
+		{
+			printf("socketpair error!!!\n");
+		} else {
+			r.sp->i = r.tos.i;
+			(r.sp+1)->i = (r.sp+2)->fd[0];
+			r.tos.i = (r.sp+2)->fd[1];
+			r.sp+=2;
+		}
+		return r;
+	}
+	"loop" {
+		*YYCURSORout = (c->cstk-2)->s;
+		return r;
+	}
+	"case" {
+		// duplicate test value if there
+		STACK_CHECK_DOWN_R(-1)
+		STACK_CHECK_UP_R(1)
+		r.sp->i = r.tos.i;
+		r.sp++;
+		// save top of case
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		// find end of case
+		YYCURSOR-=lex_if_else(&YYCURSOR, 4, 0);
+		// save end of loop
+		c->cstk->s = YYCURSOR;
+		c->cstk++;
+		c->in_case=1;
+		return r;
+	}
+	*/                               // end of re2c block
+	break;
+	case 4: // 5 letter words
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		c->is_customWord =1;
+		return r;
+	} //   default rule with its semantic action start =YYCURSOR;
+
+	"clear" {
+		r.sp=c->stk_start;
+		return r;
+	}
+	"sleep" {
+		STACK_CHECK_DOWN_R(-2)
+		r.sp-=2;
+		c->time.tv_sec = (r.sp+1)->i;
+		c->time.tv_nsec = r.tos.i;
+		r.tos.i = r.sp->i;
+		nanosleep(&c->time, NULL);
+		return r;
+	}
+	"array" {
+		STACK_CHECK_DOWN_R(-1)
+		// allocate array, 8 byte header
+		r.tos.i = r.tos.i*8+8;
+		goto malloc;
+		return r;
+	}
+	"reads" { // (0fd, 1pBuf, TOS=sizeof(pBuf))
+		STACK_CHECK_DOWN_R(-3)
+		r.sp-=2;
+		s32 tmp = read(r.sp->i, (r.sp+1)->s, r.tos.i);
+		if (tmp < 0)
+		{
+			printf("reads error!!!\n");
+		}
+		r.tos.s = (r.sp+1)->s;
+		return r;
+	}
+	"leave" {
+		// clear flag
+		c->in_case=0;
+		// leave current loop
+		*YYCURSORout = (c->cstk-1)->s;
+		// clear top two cntrl stacks entries
+		c->cstk-=2;
+		return r;
+	}
+	"again" {
+		*YYCURSORout = (c->cstk-2)->s;
+		return r;
+	}
+	"strdup" { // might move to a library
+		STACK_CHECK_DOWN_R(-1)
+		u8 *buff;
+		u64 size;
+		size = strlen((const char *)r.tos.s)+1;
+		buff = malloc(size);
+		memmove(buff, r.tos.s, size);
+		r.tos.s = buff;
+		return r;
+	}
+	"debug" {
+		
+		if (c->yycur==0)
+		{
+			c->yycur=YYCURSOR;
+		}
+		
+		if (c->is_step==3)
+		{
+			// copy back source
+			strncpy((char *)c->stecpot, (const char *)c->file_name_buff, 11);
+			c->yycur=c->stecpot;
+			c->is_step=0;
+		}
+		
+		// save off pointers
+		(r.sp+1)->s=c->yycur;
+		(r.sp+2)->s=c->yycur;
+		//save off character value
+		(r.sp+3)->i = *c->yycur;
+		*c->yycur=')';
+		
+		// find begining and ending of line
+		//if (*line_num>1) {
+		while (*(r.sp+1)->s!='\n'){
+			(r.sp+1)->s--;
+		}
+		(r.sp+1)->s++;
+		//}
+		while (*(r.sp+2)->s!='\n'){
+				(r.sp+2)->s++;
+		}
+		(r.sp+2)->s++;
+		//(r.sp+3)->i = *(r.sp+2)->s;
+		//*(r.sp+2)->s=0;
+		
+		//printf("%s", (r.sp+1)->s);
+		print_code((r.sp+1)->s, (r.sp+2)->s-(r.sp+1)->s);
+		//*(r.sp+2)->s=(r.sp+3)->i;
+		*c->yycur=(r.sp+3)->i;
+		
+		if(c->is_fp)
+		{
+			for(int x =0 ; &c->stk_start[x]!=r.sp;x++){
+				printf("[%f] ",c->stk_start[x].d);
+			}
+			printf("\n");
+		} else {
+			for(int x =0 ; &c->stk_start[x]!=r.sp;x++){
+				printf("[%ld] ",c->stk_start[x].i);
+			}
+			printf("\n");
+		}
+		
+		while (1)
+		{
+			raw_begin();
+			(r.sp+4)->i = fith_fgets(c->file_name_buff, 512, c->out);
+			raw_end();
+			//if (fgets ((char *)c->file_name_buff, 512, stdin) != NULL )
+			if ((r.sp+4)->i )
+			{
+				if (!(strncmp((const char *)c->file_name_buff, ".dump", 5)))
+				{
+					//*(c->buff) = '\000';
+					//printf("%s",c->buff_start);
+					print_code(c->buff_start, c->buff-c->buff_start);
+					continue;
+				}
+				if (!(strncmp((const char *)c->file_name_buff, ".exit", 5)))
+				{
+					return r;
+				}
+				if (!(strncmp((const char *)c->file_name_buff, ".fp", 3)))
+				{
+					c->is_fp=1;
+					continue;
+				}
+				if (!(strncmp((const char *)c->file_name_buff, ".int", 4)))
+				{
+					c->is_fp=0;
+					continue;
+				}
+				if (!(strncmp((const char *)c->file_name_buff, ".resume", 7)))
+				{
+					*YYCURSORout=c->yycur;
+					c->yycur=0;
+					return r;
+				}
+				if (!(strncmp((const char *)c->file_name_buff, ".s", 2)))
+				{
+					*YYCURSORout = c->yycur;
+					c->is_step=1;
+					return r;
+				}
+				c->out = c->buff;
+				(r.sp+5)->i=0;
+				if((*c->file_name_buff!='\n')&&(*c->file_name_buff!='.')){
+					while(c->file_name_buff[(r.sp+5)->i]!=3){
+						*c->buff=c->file_name_buff[(r.sp+5)->i];
+						(r.sp+5)->i++;
+						c->buff++;
+					}
+				}
+				//c->buff = (u8*)stpcpy((char *)c->buff, (const char *)c->file_name_buff);
+				(r.sp+5)->s=(u8*)stpcpy((char *)c->buff, " debug");
+				*(r.sp+5)->s=3;
+				*YYCURSORout = c->out;
+				return r;
+			}
+		}
+	}
+	*/                               // end of re2c block
+	break;
+	case 5: // 6 letter words
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		c->is_customWord =1;
+		return r;
+	} //   default rule with its semantic action start =YYCURSOR;
+
+	"return" {
+		// pop command stack
+		c->cstk--;
+		// skip past any looping data
+		while( (((u64)c->cstk->s)&0x8000000000000000)==0 ){c->cstk--;}
+		// goto to return address
+		*YYCURSORout = (u8 *)(((u64)c->cstk->s)&0x7FFFFFFFFFFFFFFF);
+		// leave scope
+		leave_scope();
+		return r;
+	}
+	"malloc" {
+		STACK_CHECK_DOWN_R(-1)
+		malloc:
+		r.tos.s= malloc(r.tos.i);
+		if (r.tos.s == 0 )
+		{
+			printf("malloc error!!!\n");
+		}
+		return r;
+	}
+	"random" {
+		STACK_CHECK_UP_R(1)
+		r.sp->i = r.tos.i;
+		randomness(8, &r.tos.i);
+		r.sp++;
+		return r;
+	}
+	"memcmp" {
+		STACK_CHECK_DOWN_R(-3)
+		r.sp-=2;
+		s32 res = memcmp(r.sp->s,
+						(r.sp+1)->s,
+						r.tos.i);
+		r.tos.i=res;
+		return r;
+	}
+	"writes" { // (0fd, 1pBuf)
+		STACK_CHECK_DOWN_R(-2)
+		r.sp-=2;
+		s32 res;
+		res = write((r.sp+1)->i,
+					r.tos.s,
+					strlen((const char *)r.tos.s)+1);
+		r.tos.i = r.sp->i;
+		if (res < 0)
+		{
+			printf("writes error!!!\n");
+		}
+		return r;
+	}
+	*/                               // end of re2c block
+	break;
+	case 6: // 7 letter words
+	/*!re2c                          // start of re2c block **/
+	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
+	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
+									 //
+	* { // not a predefined token
+		c->is_customWord =1;
+		return r;
+	} //   default rule with its semantic action start =YYCURSOR;
+
+	"realloc" {
+		STACK_CHECK_DOWN_R(-2)
+		r.sp--;
+		void *ptr;
+		ptr= realloc(r.sp->s, r.tos.i);
+		if (ptr == 0)
+		{
+			printf("realloc error, allocation unchanged!\n");
+			r.tos.s = r.sp->s;
+			return r;
+		}
+		r.tos.s = ptr;
+		return r;
+	}
+	*/                               // end of re2c block
+	break;
+	
+	default:
+	c->is_customWord =1;
+	return r;
+	}
+	
+	//~ stack_up_print:
+	//~ printf("stack overflow!!!\n"); return r;
+	//~ stack_down_print:
+	//~ printf("stack underflow!!!\n");return r;
+	
+}
+
+static Registers lex(Context1 *c, Registers r, Context2 *c2) // YYCURSOR is defined as a function parameter
+{                                    //
+	u8 *YYMARKER;    // YYMARKER is defined as a local variable
+	//const u8 * YYCTXMARKER; // YYCTXMARKER is defined as a local variable
+	u8 *YYCURSOR;    // YYCURSOR is defined as a local variable
+	u8 *start;
+	
+	YYCURSOR = c->source_code;
 
 loop: // label for looping within the lexxer
 	start = YYCURSOR;
@@ -241,14 +940,18 @@ loop: // label for looping within the lexxer
 			c->is_step = 2;
 		}
 	}
+	//printf("start of loop\n");
+	//print_code((YYCURSOR-0), 5);
+	//printf("Hello\n");
 
 	/*!re2c                          // start of re2c block **/
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
-									 //
+
 	* { 
 		u8 *s=start;
 		u8 *f=YYCURSOR;
+		//printf("char is %d, length %d \n", *s, YYCURSOR-start);
 		while (*s!='\n'){
 			s--;
 		}
@@ -261,19 +964,29 @@ loop: // label for looping within the lexxer
 		for (u32 ss=0; ss <(f-s); ss++){
 			fputc ( s[ss], stdout);
 		}
-		fputc ( '\n', stdout);
+		printf("\n");
 		goto loop; 
 	} //   default rule with its semantic action start =YYCURSOR;
-	[\x03] { return 0; }             // EOF rule with 0x03 sentinal
+	[\x03] { return r; }             // EOF rule with 0x03 sentinal
+	
+	[\x04] { // inside case statement, end of if
+		// restore normal ending
+		*(YYCURSOR-1)='}';
+		// leave current case
+		YYCURSOR = (c->cstk-1)->s;
+		// clear top two cntrl stacks entries
+		c->cstk-=2;
+		goto loop;
+	}            
 	
 	wsp {
-		while (start!=YYCURSOR){
-			if(*start=='\n'){
-				*line_num+=1;
-				//printf("wsp, %d\n", *line_num);
-			}
-			start++;
-		}
+		//~ while (start!=YYCURSOR){
+			//~ if(*start=='\n'){
+				//~ *line_num+=1;
+				//~ //printf("wsp, %d\n", *line_num);
+			//~ }
+			//~ start++;
+		//~ }
 		if(c->is_step==2)
 		{
 			c->is_step = 1;
@@ -282,20 +995,27 @@ loop: // label for looping within the lexxer
 	}
  
 	integer {
-		c->stk->i = strtol( (const char *)start , NULL, 0);
-		INCREMENT_STACK
+		STACK_CHECK_UP(1)
+		//printf("TOS: %ld \n",tos.i);
+		r.sp->i = r.tos.i;
+		//printf("STACK: %ld \n",r.sp->i);
+		r.tos.i = strtol( (const char *)start , NULL, 0);
+		//printf("TOS: %ld \n",r.tos.i);
+		r.sp++;
 		goto loop;
 	}
 	
 	flt {
-		c->stk->d = atof( (const char *)start );
-		INCREMENT_STACK
+		STACK_CHECK_UP(1)
+		r.sp->i = r.tos.i;
+		r.tos.d = atof( (const char *)start );
+		r.sp++;
 		goto loop;
 	}
 	
 	string_lit { 
 		start++;
-		c->stk->s = start;
+		u8 *string_start = start;
 		// concatenate all multiline strings
 		if(lex_string_lit_chain(&start))
 		{
@@ -304,1393 +1024,569 @@ loop: // label for looping within the lexxer
 			// fill in with spaces until end
 			while (start!=YYCURSOR){*start=' ';start++;}
 		}
-		INCREMENT_STACK
+		STACK_CHECK_UP(1)
+		r.sp->i = r.tos.i;
+		r.tos.s = string_start;
+		r.sp++;
 		goto loop;
 	}
 	
 	mangled_string_lit {
-		c->stk->s = start+1;
-		INCREMENT_STACK
+		STACK_CHECK_UP(1)
+		r.sp->i = r.tos.i;
+		r.tos.s = start+1;
+		r.sp++;
 		goto loop;
 	}
 
 	char_lit {
+		STACK_CHECK_UP(1)
+		r.sp->i = r.tos.i;
+		r.tos.i = *start;
+		r.sp++;
 		goto loop;
 	}
 
-	";" {
+	";" { // end of function default return
 		// pop command stack
 		c->cstk--;
 		// goto to return address
-		YYCURSOR = c->cstk->s;
+		YYCURSOR = (u8 *)(((u64)c->cstk->s)&0x7FFFFFFFFFFFFFFF);
+		// leave scope
+		leave_scope();
+		goto loop;
+	}
+	
+	"}" {
 		goto loop;
 	}
 	
 	":" {
-		c->stk->s = YYCURSOR;
-		INCREMENT_STACK
-		YYCURSOR-=lex_if_else(&YYCURSOR, 2); // skip definition
-		goto loop;
-	}
-	
-	"call" {
-		DECREMENT_STACK
-		// save off return
-		c->cstk->s = YYCURSOR;
-		c->cstk++;
-		// jump to function
-		YYCURSOR = c->stk->s;
-		goto loop;
-	}
-	
-	"load" {
-		DECREMENT_STACK
-		(c->stk+1)->s = load_file(c->stk->s,1);
-		// save off return in command stack
-		c->cstk->s = YYCURSOR;
-		c->cstk++;
-		YYCURSOR = (c->stk+1)->s;
-		goto loop;
-	}
-	
-	"return" {
-		// pop command stack
-		c->cstk--;
-		// goto to return address
-		YYCURSOR = c->cstk->s;
-		goto loop;
-	}
-	
-	"p" {
-		DECREMENT_STACK
-		if(((*c->stk->s)&0xC0)==0x80)
-		{
-			lex_printFSON(c->stk->s);
-			
-		} else {
-			printf("%s",(const char *)c->stk->s);
-		}
-		//~ printf((const char *)c->stk->s);
-		printf("\n");
-		goto loop;
-	}
-
-	"ion-set-d" { // need to write the path
-		// set string function for ion objects
-		// if path is object, does not exist, then create it
-		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments...[index]? float 'path' ionObject
-		//                  -2   -1    =     +1
-		STACK_CHECK(-3)
-		DECREMENT_STACK
-		DECREMENT_STACK
-		u32 path_len;
-		u32 fson_length;
-		s32 search_res;
-		u8 *path = c->stk->s;
-		const u8 *fson_start = (c->stk+1)->s;
-		const u8 *fson_cursor = (c->stk+1)->s+4;
-		Data insert_val = *(c->stk-1);
-		
-		// handels special case of append at top level
-		if(*path == '[')
-		{
-			if(*(path+1)== '#')
-			{
-				if(*fson_cursor != ION_ARR_START)
-				{
-					printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
-					return 0;
-				}
-				fson_length = ION_getLen(fson_start);
-				(c->stk-1)->s = ION_appVal(fson_start, insert_val, 0, fson_length);
-				goto loop;
-			} else {
-				goto process_array0;
-			}
-		}
-		
-		move_on0:
-		if(*path == '.') // we are looking for a key
-		{
-			if(*fson_cursor != ION_OBJ_START)
-			{
-				printf("ERROR lex_findPath: not a ION Obj.\n");
-				return 0;
-			}
-			path++;
-			fson_cursor++;
-			path_len = getPathLen(path);
-			//printf("lex_searchObj.%s\n", path);
-			search_res = lex_searchObj(&fson_cursor, path, path_len);
-			path+=path_len;
-			if ( (search_res==0) && (*path!=0) )
-			{
-				// success and more path to go through
-				goto move_on0;
-			} else
-			if ( (search_res==0) && (*path==0) )
-			{
-				// success and NO more path to go through
-				// done fson_cursor points at target value
-				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 0);
-			} else
-			if ( (search_res==1) && (*path!=0) )
-			{
-				// path not found AND path not complete
-				// failure case, no set is possible
-				printf("Key not found in path. More path left unread.\n");
-				goto loop;
-			} else
-			if ( (search_res==1) && (*path==0) )
-			{
-				// path not found AND path is complete
-				// we now need to insert key and value pair
-				path-=path_len;
-				(c->stk-1)->s = ION_newKeyVal(fson_start, fson_cursor, insert_val, 0, path);
-			}
-		} else if (*path == '[') {
-			process_array0:
-			if(*fson_cursor != ION_ARR_START)
-			{
-				printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
-				return 0;
-			}
-			path++;
-			fson_cursor++;
-			path_len = getPathLen(path);
-			search_res = lex_searchArray(&fson_cursor, path, path_len, c);
-			// modifies stack pointer
-			path+=path_len;
-			if ( (search_res==0) && (*path!=0) )
-			{
-				// success and more path to go through
-				goto move_on0;
-			} else
-			if ( (search_res==0) && (*path==0) )
-			{
-				// success and NO more path to go through
-				// done fson_cursor points at target value
-				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 0);
-			} else
-			if ( (search_res>0) && (*path!=0) )
-			{
-				// path not found or path is pecial ending AND path not complete
-				// failure case, no set is possible
-				printf("Error: Key not found in path. More path left unread.\n");
-				goto loop;
-			} else
-			if ( (search_res==1) && (*path==0) )
-			{
-				// path not found AND path is complete
-				// we now need to insert key and value pair
-				printf("Error: Index not found, no insert made.\n");
-				goto loop;
-			} else
-			if ( (search_res==2) && (*path==0) )
-			{
-				// path '#' or '?' AND path is complete
-				// handel only '#' for now.
-				// we now need to insert key and value pair
-				(c->stk-1)->s = ION_newValInsert(fson_start, fson_cursor, insert_val, 0);
-			}
-		} else {
-			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
-			return 0;
-		}
-		goto loop;
-	}
-
-	"ion-set-i" { // need to write the path
-		// set string function for ion objects
-		// if path is object, does not exist, then create it
-		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments...[index]? int 'path' ionObject
-		//                  -2   -1   =     +1
-		STACK_CHECK(-3)
-		DECREMENT_STACK
-		DECREMENT_STACK
-		u32 path_len;
-		u32 fson_length;
-		s32 search_res;
-		u8 *path = c->stk->s;
-		const u8 *fson_start = (c->stk+1)->s;
-		const u8 *fson_cursor = (c->stk+1)->s+4;
-		Data insert_val = *(c->stk-1);
-		
-		// handels special case of append at top level
-		if(*path == '[')
-		{
-			if(*(path+1)== '#')
-			{
-				if(*fson_cursor != ION_ARR_START)
-				{
-					printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
-					return 0;
-				}
-				fson_length = ION_getLen(fson_start);
-				(c->stk-1)->s = ION_appVal(fson_start, insert_val, 1, fson_length);
-				goto loop;
-			} else {
-				goto process_array1;
-			}
-		}
-		
-		move_on1:
-		if(*path == '.') // we are looking for a key
-		{
-			if(*fson_cursor != ION_OBJ_START)
-			{
-				printf("ERROR lex_findPath: not a ION Obj.\n");
-				return 0;
-			}
-			path++;
-			fson_cursor++;
-			path_len = getPathLen(path);
-			//printf("lex_searchObj.%s\n", path);
-			search_res = lex_searchObj(&fson_cursor, path, path_len);
-			path+=path_len;
-			if ( (search_res==0) && (*path!=0) )
-			{
-				// success and more path to go through
-				goto move_on1;
-			} else
-			if ( (search_res==0) && (*path==0) )
-			{
-				// success and NO more path to go through
-				// done fson_cursor points at target value
-				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 1);
-			} else
-			if ( (search_res==1) && (*path!=0) )
-			{
-				// path not found AND path not complete
-				// failure case, no set is possible
-				printf("Key not found in path. More path left unread.\n");
-				goto loop;
-			} else
-			if ( (search_res==1) && (*path==0) )
-			{
-				// path not found AND path is complete
-				// we now need to insert key and value pair
-				path-=path_len;
-				(c->stk-1)->s = ION_newKeyVal(fson_start, fson_cursor, insert_val, 1, path);
-			}
-		} else if (*path == '[') {
-			process_array1:
-			if(*fson_cursor != ION_ARR_START)
-			{
-				printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
-				return 0;
-			}
-			path++;
-			fson_cursor++;
-			path_len = getPathLen(path);
-			search_res = lex_searchArray(&fson_cursor, path, path_len, c);
-			// modifies stack pointer
-			path+=path_len;
-			if ( (search_res==0) && (*path!=0) )
-			{
-				// success and more path to go through
-				goto move_on1;
-			} else
-			if ( (search_res==0) && (*path==0) )
-			{
-				// success and NO more path to go through
-				// done fson_cursor points at target value
-				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 1);
-			} else
-			if ( (search_res>0) && (*path!=0) )
-			{
-				// path not found or path is pecial ending AND path not complete
-				// failure case, no set is possible
-				printf("Error: Key not found in path. More path left unread.\n");
-				goto loop;
-			} else
-			if ( (search_res==1) && (*path==0) )
-			{
-				// path not found AND path is complete
-				// we now need to insert key and value pair
-				printf("Error: Index not found, no insert made.\n");
-				goto loop;
-			} else
-			if ( (search_res==2) && (*path==0) )
-			{
-				// path '#' or '?' AND path is complete
-				// handel only '#' for now.
-				// we now need to insert key and value pair
-				(c->stk-1)->s = ION_newValInsert(fson_start, fson_cursor, insert_val, 1);
-			}
-		} else {
-			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
-			return 0;
-		}
-		goto loop;
-	}
-
-	"ion-set-s" { // need to write the path
-		// set string function for ion objects
-		// if path is object, does not exist, then create it
-		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments...[index]? str 'path' ionObject
-		//                  -2   -1   =     +1
-		STACK_CHECK(-3)
-		DECREMENT_STACK
-		DECREMENT_STACK
-		u32 path_len;
-		u32 fson_length;
-		s32 search_res;
-		u8 *path = c->stk->s;
-		const u8 *fson_start = (c->stk+1)->s;
-		const u8 *fson_cursor = (c->stk+1)->s+4;
-		Data insert_val = *(c->stk-1);
-		
-		// handels special case of append at top level
-		if(*path == '[')
-		{
-			if(*(path+1)== '#')
-			{
-				if(*fson_cursor != ION_ARR_START)
-				{
-					printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
-					return 0;
-				}
-				fson_length = ION_getLen(fson_start);
-				(c->stk-1)->s = ION_appVal(fson_start, insert_val, 2, fson_length);
-				goto loop;
-			} else {
-				goto process_array2;
-			}
-		}
-		
-		move_on2:
-		if(*path == '.') // we are looking for a key
-		{
-			if(*fson_cursor != ION_OBJ_START)
-			{
-				printf("ERROR lex_findPath: not a ION Obj.\n");
-				return 0;
-			}
-			path++;
-			fson_cursor++;
-			path_len = getPathLen(path);
-			//printf("lex_searchObj.%s\n", path);
-			search_res = lex_searchObj(&fson_cursor, path, path_len);
-			path+=path_len;
-			if ( (search_res==0) && (*path!=0) )
-			{
-				// success and more path to go through
-				goto move_on2;
-			} else
-			if ( (search_res==0) && (*path==0) )
-			{
-				// success and NO more path to go through
-				// done fson_cursor points at target value
-				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 2);
-			} else
-			if ( (search_res==1) && (*path!=0) )
-			{
-				// path not found AND path not complete
-				// failure case, no set is possible
-				printf("Key not found in path. More path left unread.\n");
-				goto loop;
-			} else
-			if ( (search_res==1) && (*path==0) )
-			{
-				// path not found AND path is complete
-				// we now need to insert key and value pair
-				path-=path_len;
-				(c->stk-1)->s = ION_newKeyVal(fson_start, fson_cursor, insert_val, 2, path);
-			}
-		} else if (*path == '[') {
-			process_array2:
-			if(*fson_cursor != ION_ARR_START)
-			{
-				printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
-				return 0;
-			}
-			path++;
-			fson_cursor++;
-			path_len = getPathLen(path);
-			search_res = lex_searchArray(&fson_cursor, path, path_len, c);
-			// modifies stack pointer
-			path+=path_len;
-			if ( (search_res==0) && (*path!=0) )
-			{
-				// success and more path to go through
-				goto move_on2;
-			} else
-			if ( (search_res==0) && (*path==0) )
-			{
-				// success and NO more path to go through
-				// done fson_cursor points at target value
-				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 2);
-			} else
-			if ( (search_res>0) && (*path!=0) )
-			{
-				// path not found or path is pecial ending AND path not complete
-				// failure case, no set is possible
-				printf("Error: Key not found in path. More path left unread.\n");
-				goto loop;
-			} else
-			if ( (search_res==1) && (*path==0) )
-			{
-				// path not found AND path is complete
-				// we now need to insert key and value pair
-				printf("Error: Index not found, no insert made.\n");
-				goto loop;
-			} else
-			if ( (search_res==2) && (*path==0) )
-			{
-				// path '#' or '?' AND path is complete
-				// handel only '#' for now.
-				// we now need to insert key and value pair
-				(c->stk-1)->s = ION_newValInsert(fson_start, fson_cursor, insert_val, 2);
-			}
-		} else {
-			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
-			return 0;
-		}
-		goto loop;
-	}
-
-	"ion-set-o" { // need to write the path
-		// set string function for ion objects
-		// if path is object, does not exist, then create it
-		// if path is an array, fail if past bounds. Needs append operator.
-		// arguments...[index]? str 'path' ionObject
-		//                  -2   -1   =     +1
-		STACK_CHECK(-3)
-		DECREMENT_STACK
-		DECREMENT_STACK
-		u32 path_len;
-		u32 fson_length;
-		s32 search_res;
-		u8 *path = c->stk->s;
-		const u8 *fson_start = (c->stk+1)->s;
-		const u8 *fson_cursor = (c->stk+1)->s+4;
-		Data insert_val = *(c->stk-1);
-		
-		// handels special case of append at top level
-		if(*path == '[')
-		{
-			if(*(path+1)== '#')
-			{
-				if(*fson_cursor != ION_ARR_START)
-				{
-					printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
-					return 0;
-				}
-				fson_length = ION_getLen(fson_start);
-				(c->stk-1)->s = ION_appVal(fson_start, insert_val, 3, fson_length);
-				goto loop;
-			} else {
-				goto process_array3;
-			}
-		}
-		
-		move_on3:
-		if(*path == '.') // we are looking for a key
-		{
-			if(*fson_cursor != ION_OBJ_START)
-			{
-				printf("ERROR lex_findPath: not a ION Obj.\n");
-				return 0;
-			}
-			path++;
-			fson_cursor++;
-			path_len = getPathLen(path);
-			//printf("lex_searchObj.%s\n", path);
-			search_res = lex_searchObj(&fson_cursor, path, path_len);
-			path+=path_len;
-			if ( (search_res==0) && (*path!=0) )
-			{
-				// success and more path to go through
-				goto move_on3;
-			} else
-			if ( (search_res==0) && (*path==0) )
-			{
-				// success and NO more path to go through
-				// done fson_cursor points at target value
-				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 3);
-			} else
-			if ( (search_res==1) && (*path!=0) )
-			{
-				// path not found AND path not complete
-				// failure case, no set is possible
-				printf("Key not found in path. More path left unread.\n");
-				goto loop;
-			} else
-			if ( (search_res==1) && (*path==0) )
-			{
-				// path not found AND path is complete
-				// we now need to insert key and value pair
-				path-=path_len;
-				(c->stk-1)->s = ION_newKeyVal(fson_start, fson_cursor, insert_val, 3, path);
-			}
-		} else if (*path == '[') {
-			process_array3:
-			if(*fson_cursor != ION_ARR_START)
-			{
-				printf("ERROR lex_findPath: not a ION Array, %d.\n",*fson_cursor);
-				return 0;
-			}
-			path++;
-			fson_cursor++;
-			path_len = getPathLen(path);
-			search_res = lex_searchArray(&fson_cursor, path, path_len, c);
-			// modifies stack pointer
-			path+=path_len;
-			if ( (search_res==0) && (*path!=0) )
-			{
-				// success and more path to go through
-				goto move_on3;
-			} else
-			if ( (search_res==0) && (*path==0) )
-			{
-				// success and NO more path to go through
-				// done fson_cursor points at target value
-				(c->stk-1)->s = ION_newValOverWrite(fson_start, fson_cursor, insert_val, 3);
-			} else
-			if ( (search_res>0) && (*path!=0) )
-			{
-				// path not found or path is pecial ending AND path not complete
-				// failure case, no set is possible
-				printf("Error: Key not found in path. More path left unread.\n");
-				goto loop;
-			} else
-			if ( (search_res==1) && (*path==0) )
-			{
-				// path not found AND path is complete
-				// we now need to insert key and value pair
-				printf("Error: Index not found, no insert made.\n");
-				goto loop;
-			} else
-			if ( (search_res==2) && (*path==0) )
-			{
-				// path '#' or '?' AND path is complete
-				// handel only '#' for now.
-				// we now need to insert key and value pair
-				(c->stk-1)->s = ION_newValInsert(fson_start, fson_cursor, insert_val, 3);
-			}
-		} else {
-			printf("ERROR lex_findPath: not a valid path ION Obj.\n");
-			return 0;
-		}
-		goto loop;
-	}
-
-	"ion-get" {
-		// get function for ion objects
-		// arguments... 'path' ionObject
-		STACK_CHECK(-2)
-		DECREMENT_STACK
-		u8 *value = (u8 *)lex_findPath(c->stk->s+4, (c->stk-1)->s, c);
-		*(c->stk-1) = lex_returnVal(value);
-		//c->stk--;
-		goto loop;
-	}
-	
-	"ion-each" {
-		// get function for ion objects
-		// arguments... ionObject anonFunc ion-each -- nothing
-		//              0          +1       
-		STACK_CHECK(-2)
-		c->stk-=2;
-		u8 *ionObject = c->stk->s+4;
-		u8 *func = (c->stk+1)->s;
-		if(*ionObject == ION_OBJ_START)
-		{
-			ionObject++;
-			if(*ionObject == ION_OBJ_END)
-			{
-				// empty 
-				goto loop;
-			}
-			// skip key
-			lex_skipVal((const u8 **)&ionObject);
-			// set flag for object
-			(c->cstk+2)->i=1;
-		} else if (*ionObject == ION_ARR_START){
-			ionObject++;
-			if(*ionObject == ION_ARR_END)
-			{
-				// empty 
-				goto loop;
-			}
-			// set flag for array
-			(c->cstk+2)->i=0;
-		} else {
-			printf("ERROR not an array or Object.\n");
-			goto loop;
-		}
-		// push value
-		*c->stk = lex_returnVal(ionObject);
-		c->stk++;
-		// skip value
-		lex_skipVal((const u8 **)&ionObject);
-		// push jump back
-		c->cstk->s = YYCURSOR;
-		// push where we are in object
-		(c->cstk+1)->s=ionObject;
-		(c->cstk+3)->s=func;
-		c->cstk+=4; 
-		// call **************
-		// save off return
-		c->cstk->s = (u8*)"ion-each$";
-		c->cstk++;
-		// jump to function
-		YYCURSOR = func;
-		goto loop;
-	}
-
-	"ion-each$" {
-		// ctrl stk... rtrnPtr ionPtr ionFlag anonFunc 
-		//              -4      -3     -2      -1
-		u8 *ionObject = (c->cstk-3)->s;
-		u8 *func = (c->cstk-1)->s;
-		s64 flags = (c->cstk-2)->i;
-		u8 *retPtr = (c->cstk-4)->s;
-		if(flags)
-		{
-			if(*ionObject == ION_OBJ_END)
-			{
-				// done 
-				c->cstk-=4;
-				// return address
-				YYCURSOR = retPtr;
-				goto loop;
-			}
-			// skip key
-			lex_skipVal((const u8 **)&ionObject);
-		} else {
-			if(*ionObject == ION_ARR_END)
-			{
-				// done 
-				c->cstk-=4;
-				// return address
-				YYCURSOR = retPtr;
-				goto loop;
-			}
-		}
-		// push value
-		*c->stk = lex_returnVal(ionObject);
-		INCREMENT_STACK
-		// skip value
-		lex_skipVal((const u8 **)&ionObject);
-		// save where we are in object
-		(c->cstk-3)->s =ionObject; 
-		// call **************
-		// save off return
-		c->cstk->s = (u8*)"ion-each$";
-		c->cstk++;
-		// jump to function
-		YYCURSOR = func;
-		goto loop;
-	}
-
-	"praw" {
-		DECREMENT_STACK
-		for (u8 *a = c->stk->s; (*a); a++)
-		{
-			if (*a<0x80){
-				printf("%c",(*a));
-			} else {
-				printf("|%hhX|",(*a));
-			}
-		}
-		printf("\n");
-		//~ //printf((const char *)c->stk->s);
-		//~ //printf("\n");
-		u32 string_len = strlen((const char *)c->stk->s);
-		(c->stk+1)->s = malloc(string_len*3);
-		lex_FSONToString(c->stk->s, (c->stk+1)->s);
-		printf("%s\n",(const char *)(c->stk+1)->s);
-		goto loop;
-	}
-
-	"or" { // "||"
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i||c->stk->i;
-		goto loop;
-	}
-
-	"and" { // "&&"
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i&&c->stk->i;
+		STACK_CHECK_UP(1)
+		r.sp->i = r.tos.i;
+		r.tos.s = YYCURSOR;
+		r.sp++;
+		YYCURSOR-=lex_if_else(&YYCURSOR, 2, 0); // skip definition
 		goto loop;
 	}
 
 	"&" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i&c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i&r.tos.i;
 		goto loop;
 	}
 
 	"^" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i^c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i^r.tos.i;
 		goto loop;
 	}
 
 	"|" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i|c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i|r.tos.i;
 		goto loop;
 	}
 
 	"==" {
-		DECREMENT_STACK
-		(c->stk-1)->i = ((c->stk-1)->i)==(c->stk->i);
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i==r.tos.i;
 		goto loop;
 	}
 
 	"!=" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i!=c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i!=r.tos.i;
 		goto loop;
 	}
 
 	"<" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i<c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i<r.tos.i;
 		goto loop;
 	}
 
 	">" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i>c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i>r.tos.i;
 		goto loop;
 	}
 
 	"<=" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i<=c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i<=r.tos.i;
 		goto loop;
 	}
 
 	">=" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i>=c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i>=r.tos.i;
 		goto loop;
 	}
 
 	"<<" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i<<c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i<<r.tos.i;
 		goto loop;
 	}
 
 	">>" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i>>c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i>>r.tos.i;
 		goto loop;
 	}
 
 	"+" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i+c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i+r.tos.i;
+		goto loop;
+	}
+
+	"+s" { // string concatenation
+		stringCat:
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		u8 *ret;
+		//u8 *readthis = (r.sp-1);
+		u64 string1Len = strlen((const char *)(r.sp-1)->s);
+		u64 string2Len = strlen((const char *)r.sp->s);
+		//printf("Dead here1?\n");
+		ret = heap_realloc((r.sp-1)->s,
+						              string1Len+string2Len+1 );
+		if (ret==0){/*YYCURSOR=start;*/r.sp++;goto stringCat;}
+		
+		//printf("Dead here2?\n");
+		//printf("Dead here3?\n");
+		(r.sp-1)->s = ret;
+		//printf("Dead here3?\n");
+		memmove(((r.sp-1)->s+string1Len), r.sp->s, string2Len+1);
+		//printf("Dead here4?\n");
 		goto loop;
 	}
 
 	"-" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i-c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i-r.tos.i;
 		goto loop;
 	}
 
 	"/" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i/c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i/r.tos.i;
 		goto loop;
 	}
 	
 	"*" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i*c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i*r.tos.i;
 		goto loop;
 	}
 
-	"f+" {
-		DECREMENT_STACK
-		(c->stk-1)->d = (c->stk-1)->d+c->stk->d;
+	"+f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d+r.tos.d;
 		goto loop;
 	}
 
-	"f-" {
-		DECREMENT_STACK
-		(c->stk-1)->d = (c->stk-1)->d-c->stk->d;
+	"-f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d-r.tos.d;
 		goto loop;
 	}
 
-	"f/" {
-		DECREMENT_STACK
-		(c->stk-1)->d = (c->stk-1)->d/c->stk->d;
+	"/f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d/r.tos.d;
 		goto loop;
 	}
 	
-	"f*" {
-		DECREMENT_STACK
-		(c->stk-1)->d = (c->stk-1)->d*c->stk->d;
+	"*f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d*r.tos.d;
 		goto loop;
 	}
 	
-	"f==" {
-		DECREMENT_STACK
-		(c->stk-1)->d = ((c->stk-1)->d)==(c->stk->d);
+	"==f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d==r.tos.d;
 		goto loop;
 	}
 
-	"f!=" {
-		DECREMENT_STACK
-		(c->stk-1)->d = (c->stk-1)->d!=c->stk->d;
+	"!=f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d!=r.tos.d;
 		goto loop;
 	}
 
-	"f<" {
-		DECREMENT_STACK
-		(c->stk-1)->d = (c->stk-1)->d<c->stk->d;
+	"<f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d<r.tos.d;
 		goto loop;
 	}
 
-	"f>" {
-		DECREMENT_STACK
-		(c->stk-1)->d = (c->stk-1)->d>c->stk->d;
+	">f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d>r.tos.d;
 		goto loop;
 	}
 
-	"f<=" {
-		DECREMENT_STACK
-		(c->stk-1)->d = (c->stk-1)->d<=c->stk->d;
+	"<=f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d<=r.tos.d;
 		goto loop;
 	}
 
-	"f>=" {
-		DECREMENT_STACK
-		(c->stk-1)->d = (c->stk-1)->d>=c->stk->d;
+	">=f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.d = r.sp->d>=r.tos.d;
+		goto loop;
+	}
+
+	"%f" {
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		f64 var;
+		var = r.sp->d/r.tos.d;
+		var = modf(var, &r.sp->d);
+		r.tos.d = var * r.tos.d;
 		goto loop;
 	}
 
 	"%" {
-		DECREMENT_STACK
-		(c->stk-1)->i = (c->stk-1)->i%c->stk->i;
+		STACK_CHECK_DOWN(-2)
+		r.sp--;
+		r.tos.i = r.sp->i%r.tos.i;
 		goto loop;
 	}
 
 	"." {
-		for(int x =0 ; &c->stk_start[x]!=c->stk;x++){
-			printf("(%ld) ",c->stk_start[x].i);
+		u32 x=1;
+		if(&c->stk_start[0]!=r.sp){
+			for(; &c->stk_start[x]!=r.sp;x++){
+				printf("(%ld) ",c->stk_start[x].i);
+			}
+			printf("(%ld) ",r.tos.i);
 		}
+		//~ for(; &c->stk_start[x]!=r.sp;x++){
+			//~ printf("(%ld) ",c->stk_start[x].i);
+		//~ }
 		printf("\n");
 		goto loop;
 	}
 	
-	"f." {
-		for(int x =0 ; &c->stk_start[x]!=c->stk;x++){
-			printf("(%f) ",c->stk_start[x].d);
+	".f" {
+		u32 x=1;
+		if(&c->stk_start[0]!=r.sp){
+			for(; &c->stk_start[x]!=r.sp;x++){
+				printf("(%f) ",c->stk_start[x].d);
+			}
+			printf("(%f) ",r.tos.d);
 		}
+		//~ for(int x =0 ; &c->stk_start[x]!=r.sp;x++){
+			//~ printf("(%f) ",c->stk_start[x].d);
+		//~ }
 		printf("\n");
 		goto loop;
 	}
 	
 	"~" {
-		(c->stk-1)->i = ~((c->stk-1)->i);
-		goto loop;
-	}
-	
-	"not" {
-		(c->stk-1)->i = !((c->stk-1)->i);
-		goto loop;
-	}
-	
-	"dup" {
-		c->stk->i = (c->stk-1)->i;
-		INCREMENT_STACK
-		goto loop;
-	}
-	
-	"over" {
-		c->stk->i = (c->stk-2)->i;
-		INCREMENT_STACK
-		goto loop;
-	}
-	
-	"pick" {
-		c->stk->i = (c->stk-3)->i;
-		INCREMENT_STACK
-		goto loop;
-	}
-	
-	"drop" {
-		DECREMENT_STACK
-		goto loop;
-	}
-	
-	"clear" {
-		c->stk=c->stk_start;
-		goto loop;
-	}
-	
-	"dep" {
-		c->stk->i = c->stk-c->stk_start;
-		INCREMENT_STACK
-		goto loop;
-	}
-	
-	"swap" {
-		c->stk->i = (c->stk-2)->i;
-		(c->stk-2)->i = (c->stk-1)->i;
-		(c->stk-1)->i = c->stk->i;
-		goto loop;
-	}
-	
-	"rot" {
-		c->stk->i = (c->stk-3)->i;
-		(c->stk-3)->i = (c->stk-2)->i;
-		(c->stk-2)->i = (c->stk-1)->i;
-		(c->stk-1)->i = c->stk->i;
+		STACK_CHECK_DOWN(-1)
+		r.tos.i = ~r.tos.i;
 		goto loop;
 	}
 
-	"if" {
-		DECREMENT_STACK
-		if(c->stk->i==0){
-			YYCURSOR-=lex_if_else(&YYCURSOR, 0);
-		}
-		goto loop;
-	}
-	
-	"else" {
-		YYCURSOR-=lex_if_else(&YYCURSOR, 1);
-		goto loop;
-	}
-	
-	"then" {
-		goto loop;
-	}
-	
-	"begin" {
-		c->cstk->s = YYCURSOR;
-		c->cstk++;
-		goto loop;
-	}
-	
-	"until" {
-		DECREMENT_STACK
-		if(c->stk->i==0){
-			YYCURSOR = (c->cstk-1)->s;
-		} else {
-			c->cstk--;
-		}
+	"=" { // assignment
+		c->word_flags = 1;
 		goto loop;
 	}
 
-	// new loop to go over values in an object or an array
-	//~ "jeach" { // json is on top of the stack
-		//~ // cstack where sql statement will be saved
-		//~ (c->cstk+1)->s=0;
-		//~ // begin json work
-		//~ c->stk->i = fith_json_each((c->stk-1)->s, // json
-									//~ (c->stk-1),       // value output
-									//~ (sqlite3_stmt **)(c->cstk+1)); // sql
-		//~ // check for early exit
-		//~ if(c->stk->i==0){
-			//~ YYCURSOR-=lex_if_else(&YYCURSOR, 3);
-			//~ goto loop;
-		//~ }
-		//~ // save off data in control stack
-		//~ // set up jump back
-		//~ c->cstk->s = YYCURSOR;
-		//~ c->cstk+=2;
-		//~ goto loop;
-	//~ }
-
-	//~ "jdone" { // condition not based on data stack
-		//~ // begin json work
-		//~ (c->stk+1)->i = fith_json_each(0, // json
-									//~ c->stk,       // value output
-									//~ (sqlite3_stmt **)(c->cstk-1)); // sql
-		//~ // 0 if done
-		//~ if((c->stk+1)->i==0){
-			//~ sqlite3_finalize((sqlite3_stmt *)(c->cstk-1)->s);
-			//~ c->cstk-=2;
-		//~ } else {
-			//~ YYCURSOR = (c->cstk-2)->s;
-			//~ INCREMENT_STACK
-		//~ }
-		//~ goto loop;
-	//~ }
-	
-	//~ "jsort" { // return sorted JSON array
-
-		//~ // begin json work
-		//~ c->stk->i = fith_json_sort((c->stk-1)->s, // json
-									//~ (c->stk-1));  // value output
-		//~ // check for early exit
-		//~ if(c->stk->i!=0){
-			//~ printf("jsort error!!!\n");
-		//~ }
-		//~ goto loop;
-	//~ }
-	
-	"sleep" {
-		DECREMENT_STACK
-		DECREMENT_STACK
-		c->time.tv_sec = (c->stk)->i;
-		c->time.tv_nsec = (c->stk+1)->i;
-		nanosleep(&c->time, NULL);
-		goto loop;
-	}
-	
-	"fork" {
-		// fork executes a function in another process. The parent process will
-		// skip the next function call. The child process need to have the
-		// return stack modified to exit, returns pid
-		c->stk->i = fork();
-		if (c->stk->i < 0){
-			printf("Fork error!!!\n");
-		} else if (c->stk->i == 0) {
-			c->cstk->s = (u8*)"exit";
-			c->cstk++;
-			// jump to function
-			YYCURSOR = (c->stk-1)->s;
-			c->stk-=1;
-		} else {
-			(c->stk-1)->i = c->stk->i;
-		}
-		goto loop;
-	}
-	
-	"exit" {
-		_Exit((c->stk-1)->i);
-	}
-	
-	"malloc" {
-		(c->stk-1)->s= malloc((c->stk-1)->i);
-		if ((c->stk-1)->s == 0 )
-		{
-			printf("malloc error!!!\n");
-		}
-		goto loop;
-	}
-	
-	"realloc" {
-		(c->stk-1)->s= realloc ((c->stk-2)->s, (c->stk-1)->i);
-		if ((c->stk-1)->s == 0 )
-		{
-			printf("realloc error!!!\n");
-		}
-		goto loop;
-	}
-	
-	"free" {
-		DECREMENT_STACK
-		free(c->stk->s);
-		goto loop;
-	}
-	
-	"array" {
-		// allocate array with padding for 7 byte header (memory log =1 byte)
-		(c->stk-1)->s = malloc(((c->stk-1)->i*8)+7);
-		// tag header with invalid utf-8
-		*(c->stk-1)->s = 0xFF;
-		goto loop;
-	}
-	
-	"sort" {
-		DECREMENT_STACK
-		if(c->stk-c->stk_start<c->stk->i){
-			printf("stack underflow avoided!!!\n");
-			goto loop;
-		}
-		MERGE_SORT_s64((s64 *)(c->stk-c->stk->i), c->stk->i);
-		goto loop;
-	}
-	
-	"random" {
-		//sqlite3_randomness(8, &c->stk->i);
-		c->stk->i = (s64)( ((u64)((*(c->stk->s))+3)) * ((*(c->stk->s+1))+3) * ((*(c->stk->s+2))+3)
-		 * ((*(c->stk->s+3))+3) * ((*(c->stk->s+4))+3) * ((*(c->stk->s+5))+3)
-		  * ((*(c->stk->s+6))+3) * ((*(c->stk->s+7))+3) );
-		INCREMENT_STACK
-		goto loop;
-	}
-	
-	"memcmp" {
-		DECREMENT_STACK
-		DECREMENT_STACK
-		(c->stk-1)->i = memcmp((c->stk-1)->s,
-											c->stk->s,
-											(c->stk+1)->i);
-		goto loop;
-	}
-	
-	"abs" {
-		(c->stk-1)->i=labs((c->stk-1)->i);
+	"=:" { // assignment of constant
+		c->word_flags = 3;
 		goto loop;
 	}
 
-	"fabs" {
-		(c->stk-1)->d=fabs((c->stk-1)->d);
+	"+=" { // assignment
+		c->word_flags = 4;
 		goto loop;
 	}
 	
-	"i2f" {
-		(c->stk-1)->d=(c->stk-1)->i;
-		goto loop;
-	}
-	
-	"i2s" {
-		// save off value
-		c->stk->i=(c->stk-1)->i;
-		// get string
-		(c->stk-1)->s = heap_malloc(24);
-		sprintf((char *)(c->stk-1)->s, "%ld", c->stk->i);
-		goto loop;
-	}
-	
-	"f2i" {
-		(c->stk-1)->i=(c->stk-1)->d;
-		goto loop;
-	}
-	
-	"f2s" {
-		// save off value
-		c->stk->d=(c->stk-1)->d;
-		// get string
-		(c->stk-1)->s = heap_malloc(24);
-		sprintf((char *)(c->stk-1)->s, "%f", c->stk->d);
+	"-=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x10;
 		goto loop;
 	}
 
-	"s2i" {
-		(c->stk-1)->i = strtol( (const char *)(c->stk-1)->s, NULL, 0);
+	"*=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x20;
 		goto loop;
 	}
-	
-	"s2f" {
-		(c->stk-1)->d = atof( (const char *)(c->stk-1)->s );
+
+	"/=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x30;
 		goto loop;
 	}
-	
-	"s2o" {
-		u32 string_len = strlen((const char *)(c->stk-1)->s);
-		c->stk->s = heap_malloc(string_len*3);
-		lex_stringToFSON((c->stk-1)->s, c->stk->s);
-		(c->stk-1)->s = c->stk->s;
+
+	"%=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x40;
 		goto loop;
 	}
-	
-	"chan" {
-		c->stk->i = socketpair(AF_UNIX, SOCK_STREAM, 0, (c->stk+2)->fd);
-		if (c->stk->i < 0)
-		{
-			printf("socketpair error!!!\n");
-		} else {
-			c->stk->i = (c->stk+2)->fd[0];
-			(c->stk+1)->i = (c->stk+2)->fd[1];
-			INCREMENT_STACK
-			INCREMENT_STACK
-		}
+
+	"&=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x50;
 		goto loop;
 	}
-	
-	"reads" { // (0fd, 1pBuf, 2sizeof(pBuf))
-		DECREMENT_STACK
-		DECREMENT_STACK
-		(c->stk+2)->i = read((c->stk-1)->i, c->stk->s, (c->stk+1)->i);
-		if ((c->stk+2)->i < 0)
-		{
-			printf("reads error!!!\n");
-		}
-		(c->stk-1)->s = c->stk->s;
+
+	"|=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x60;
 		goto loop;
 	}
-	
-	"writes" { // (0fd, 1pBuf)
-		DECREMENT_STACK
-		DECREMENT_STACK
-		
-		(c->stk+3)->i = write(c->stk->i,
-								(c->stk+1)->s,
-								strlen((const char *)(c->stk+1)->s)+1);
-		
-		if ((c->stk+3)->i < 0)
-		{
-			printf("writes error!!!\n");
-		}
+
+	"^=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x70;
 		goto loop;
 	}
-	
-	"debug" {
-		
-		if (c->yycur==0)
-		{
-			c->yycur=YYCURSOR;
-		}
-		
-		if (c->is_step==3)
-		{
-			// copy back source
-			strncpy((char *)c->stecpot, (const char *)c->file_name_buff, 11);
-			c->yycur=c->stecpot;
-			c->is_step=0;
-		}
-		
-		// save off pointers
-		(c->stk+1)->s=c->yycur;
-		(c->stk+2)->s=c->yycur;
-		//save off character value
-		(c->stk+3)->i = *c->yycur;
-		*c->yycur=')';
-		
-		// find begining and ending of line
-		if (*line_num>1) {
-			while (*(c->stk+1)->s!='\n'){
-				(c->stk+1)->s--;
-			}
-			(c->stk+1)->s++;
-		}
-		while (*(c->stk+2)->s!='\n'){
-				(c->stk+2)->s++;
-		}
-		(c->stk+2)->s++;
-		//(c->stk+3)->i = *(c->stk+2)->s;
-		//*(c->stk+2)->s=0;
-		
-		//printf("%s", (c->stk+1)->s);
-		print_code((c->stk+1)->s, (c->stk+2)->s-(c->stk+1)->s);
-		//*(c->stk+2)->s=(c->stk+3)->i;
-		*c->yycur=(c->stk+3)->i;
-		
-		if(c->is_fp)
-		{
-			for(int x =0 ; &c->stk_start[x]!=c->stk;x++){
-				printf("[%f] ",c->stk_start[x].d);
-			}
-			printf("\n");
-		} else {
-			for(int x =0 ; &c->stk_start[x]!=c->stk;x++){
-				printf("[%ld] ",c->stk_start[x].i);
-			}
-			printf("\n");
-		}
-		
-		while (1)
-		{
-			raw_begin();
-			(c->stk+4)->i = fith_fgets(c->file_name_buff, 512, c->out);
-			raw_end();
-			//if (fgets ((char *)c->file_name_buff, 512, stdin) != NULL )
-			if ((c->stk+4)->i )
-			{
-				if (!(strncmp((const char *)c->file_name_buff, ".dump", 5)))
-				{
-					//*(c->buff) = '\000';
-					//printf("%s",c->buff_start);
-					print_code(c->buff_start, c->buff-c->buff_start);
-					continue;
-				}
-				if (!(strncmp((const char *)c->file_name_buff, ".exit", 5)))
-				{
-					return 0;
-				}
-				if (!(strncmp((const char *)c->file_name_buff, ".fp", 3)))
-				{
-					c->is_fp=1;
-					continue;
-				}
-				if (!(strncmp((const char *)c->file_name_buff, ".int", 4)))
-				{
-					c->is_fp=0;
-					continue;
-				}
-				if (!(strncmp((const char *)c->file_name_buff, ".resume", 7)))
-				{
-					YYCURSOR=c->yycur;
-					c->yycur=0;
-					goto loop;
-				}
-				if (!(strncmp((const char *)c->file_name_buff, ".s", 2)))
-				{
-					YYCURSOR = c->yycur;
-					c->is_step=1;
-					goto loop;
-				}
-				c->out = c->buff;
-				(c->stk+5)->i=0;
-				if((*c->file_name_buff!='\n')&&(*c->file_name_buff!='.')){
-					while(c->file_name_buff[(c->stk+5)->i]!=3){
-						*c->buff=c->file_name_buff[(c->stk+5)->i];
-						(c->stk+5)->i++;
-						c->buff++;
+
+	">>=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x80;
+		goto loop;
+	}
+
+	"<<=" { // assignment
+		c->word_flags = 4;
+		c->word_flags |= 0x90;
+		goto loop;
+	}
+
+	"@" {
+		c->word_flags = 2;
+		goto loop;
+	}
+
+	// new work flow. Check locals if any. Check functions. Check globals. Nothing found.
+	word {
+		//get_function_addr
+		s64 *varP, tmp, val;
+		u8 *ptr;
+		s32 res;
+		u8 flags;
+		c->source_code = start;
+		r = lex_word(c, r, &YYCURSOR, (YYCURSOR - start));
+		if ( c->is_customWord ){
+			switch(c->word_flags&0x0F){
+				case 0: // no flags
+				// check locals
+				if(scope_index>0&&(vars[scope_index]!=0)){
+					res = get_variable(start, (YYCURSOR - start), &val, scope_index);
+					if (res!=0){
+						STACK_CHECK_UP(1)
+						r.sp->i = r.tos.i;
+						r.tos.i = val;
+						r.sp++;
+						goto loop;
 					}
 				}
-				//c->buff = (u8*)stpcpy((char *)c->buff, (const char *)c->file_name_buff);
-				(c->stk+5)->s=(u8*)stpcpy((char *)c->buff, " debug");
-				*(c->stk+5)->s=3;
-				YYCURSOR = c->out;
-				goto loop;
+				// else
+				// check if its a function
+				ptr = (u8 *)get_function_addr(start, (YYCURSOR - start));
+				if (ptr!=0){
+					// IT IS A FUNCTION!!!
+					// save off return
+					c->cstk->s = (u8 *)(((u64)YYCURSOR)|0x8000000000000000);
+					c->cstk++;
+					// jump to function
+					YYCURSOR = ptr;
+					// enter scope
+					enter_scope();
+					goto loop;
+				}
+				// else
+				// check if its a global
+				res = get_variable(start, (YYCURSOR - start), &val, 0);
+				if (res!=0){
+					STACK_CHECK_UP(1)
+					r.sp->i = r.tos.i;
+					r.tos.i = val;
+					r.sp++;
+					goto loop;
+				}
+				// nothing
+				printf("Cannot find identifier as a local/function/global name!!!");
+				print_code(start, (YYCURSOR - start));
+				printf("\n");
+				break;
+				case 1: // assignment
+				c->word_flags=0;
+				STACK_CHECK_DOWN(-1)
+				r.sp--;
+				// will try to insert unique name, if fails will update value only
+				save_variable(start, (YYCURSOR - start), r.tos.i, 0);
+				r.tos.i = r.sp->i;
+				break;
+				case 2: // get address
+				c->word_flags=0;
+				// check locals
+				if(scope_index>0&&(vars[scope_index]!=0)){
+					ptr = (u8 *)get_variable_addr(start, (YYCURSOR - start), scope_index, &tmp);
+					if (ptr!=0){
+						STACK_CHECK_UP(1)
+						r.sp->i = r.tos.i;
+						r.tos.s = ptr;
+						r.sp++;
+						goto loop;
+					}
+				}
+				// else
+				// check if its a function
+				ptr = (u8 *)get_function_addr(start, (YYCURSOR - start));
+				if (ptr!=0){
+					STACK_CHECK_UP(1)
+					r.sp->i = r.tos.i;
+					r.tos.s = ptr;
+					r.sp++;
+					goto loop;
+				}
+				// else
+				// check if its a global
+				ptr = (u8 *)get_variable_addr(start, (YYCURSOR - start), 0, &tmp);
+				if (ptr!=0){
+					STACK_CHECK_UP(1)
+					r.sp->i = r.tos.i;
+					r.tos.s = ptr;
+					r.sp++;
+					goto loop;
+				}
+				// nothing
+				printf("Cannot find identifier as a local/function/global name!!!");
+				print_code(start, (YYCURSOR - start));
+				printf("\n");
+				break;
+				case 3: // assignment of constant
+				c->word_flags=0;
+				STACK_CHECK_DOWN(-1)
+				r.sp--;
+				// will try to insert unique name, if fails will update value only
+				save_variable(start, (YYCURSOR - start), r.tos.i, ((u64)0x80)<<56);
+				r.tos.i = r.sp->i;
+				break;
+				case 4: // plus equals operator
+				flags=c->word_flags;
+				c->word_flags=0;
+				STACK_CHECK_DOWN(-1)
+				r.sp--;
+				val = r.tos.i;
+				r.tos.i = r.sp->i;
+				varP=0;
+				// check locals
+				if(scope_index>0&&(vars[scope_index]!=0)){
+					varP = get_variable_addr(start, (YYCURSOR - start), scope_index, &tmp);
+				}
+				// else
+				// check if its a global
+				if(varP==0){
+					varP = get_variable_addr(start, (YYCURSOR - start), 0, &tmp);
+				}
+				// nothing
+				if (varP==0){
+					printf("Cannot find identifier as a local/global name!!!");
+					print_code(start, (YYCURSOR - start));
+					printf("\n");
+					goto loop;
+				}
+				// constant
+				if((tmp&0x8000000000000000)!=0){
+					printf("Cannot change constant: ");
+					print_code(start, (YYCURSOR - start));
+					printf("\n");
+					goto loop;
+				}
+				// else
+				// load -> modify -> store
+				tmp = *varP; // load
+				// modify
+				switch(flags>>4){
+					case 0:
+					tmp = tmp+val;
+					break;
+					case 1:
+					tmp = tmp-val;
+					break;
+					case 2:
+					tmp = tmp*val;
+					break;
+					case 3:
+					tmp = tmp/val;
+					break;
+					case 4:
+					tmp = tmp%val;
+					break;
+					case 5:
+					tmp = tmp&val;
+					break;
+					case 6:
+					tmp = tmp|val;
+					break;
+					case 7:
+					tmp = tmp^val;
+					break;
+					case 8:
+					tmp = tmp>>val;
+					break;
+					case 9:
+					tmp = tmp<<val;
+					break;
+				}
+				// store
+				*varP = tmp;
+				break;
 			}
 		}
-	}
-	
-	var {
-		start+=1;
-		(c->stk+1)->i = get_variable(start, (YYCURSOR - start), &c->stk->i);
-		if ((c->stk+1)->i==0){
-			printf("Cannot find variable name!!!");
-			print_code(start, (YYCURSOR - start));
-			fputc ('\n', stdout);
-			goto loop;
-		}
-		INCREMENT_STACK
-		goto loop;
-	}
-
-	var_assign {
-		start+=2;
-		DECREMENT_STACK
-		// will try to insert unique name, if fails will update value only
-		save_variable(start, (YYCURSOR - start), c->stk->i);
-		goto loop;
-	}
-
-	function_call {
-		//get_function_addr
-		c->stk->s = (u8 *)get_function_addr(start, (YYCURSOR - start));
-		if (c->stk->s==0){
-			printf("Cannot find function name!!!");
-			print_code(start, (YYCURSOR - start));
-			fputc ('\n', stdout);
-			goto loop;
-		}
-		// save off return
-		c->cstk->s = YYCURSOR;
-		c->cstk++;
-		// jump to function
-		YYCURSOR = c->stk->s;
-		goto loop;
-	}
-	
-	function_call_addr {
-		c->stk->s = (u8 *)get_function_addr(start, (YYCURSOR - start-1));
-		if (c->stk->s==0){
-			printf("Cannot find function name!!!");
-			print_code(start, (YYCURSOR - start));
-			fputc ('\n', stdout);
-			goto loop;
-		}
-		INCREMENT_STACK
 		goto loop;
 	}
 	
 	function_definition {
 		save_function_addr(start, (YYCURSOR - start-1), YYCURSOR);
-		YYCURSOR-=lex_if_else(&YYCURSOR, 2); // skip definition
+		YYCURSOR-=lex_if_else(&YYCURSOR, 2, 0); // skip definition
 		goto loop;
 	}
 	*/                               // end of re2c block
-}  
+
+	stack_up_print:
+	printf("stack overflow!!!\n"); goto loop;
+	stack_down_print:
+	printf("stack underflow!!!\n"); goto loop;
+}
 
 
 

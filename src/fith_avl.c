@@ -17,7 +17,8 @@ typedef struct StringTos64Node_s {
 	u8                        key[5];
 } *StringTos64Node;
 
-static StringTos64Node fns, vars;
+static StringTos64Node fns, vars[64];
+static u32 scope_index;
 
 typedef struct StringTos64Nodenfo_s {
    struct StringTos64Node_s *n;
@@ -40,6 +41,20 @@ typedef struct trav_state_s {
 
 #define Balanced(n) (n->longer < 0)
 
+
+static void
+StringTos64Tree_destroy(StringTos64Node *treep)
+{
+	StringTos64Node tree = *treep;
+	
+	if (tree==0){
+		return;
+	}
+	StringTos64Tree_destroy(&tree->next[LEFT]);
+	StringTos64Tree_destroy(&tree->next[RIGHT]);
+	free(tree);
+	*treep = 0;
+}
 
 static StringTos64Node
 StringTos64Tree_traverse(StringTos64Node tree, TravState_i *s)

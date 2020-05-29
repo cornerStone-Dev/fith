@@ -4,6 +4,8 @@
 typedef struct heap_data_s {
 	u8 *h;
 	u8 *cache;
+	u8 *fix_me;
+	Context1 *c;
 	u64 i;
 	u64 b;
 	u64 t;
@@ -14,8 +16,8 @@ static Heap heap_data;
 
 typedef struct var_data_s {
 	s64 *v;
-	u32 i;
 	u32 hw;
+	u32 i[64];
 } Vars;
 static Vars var_data;
 
@@ -27,10 +29,13 @@ heap_malloc(size_t bytes)
 	void *p;
 	u64 next_index;
 	
+	bytes=(bytes+7)/8*8;
+	//printf("heap_malloc\n");
 	next_index = heap_data.i+bytes;
 	while (next_index>heap_data.t) // garbage collection time
 	{
 		garbage_collect(bytes);
+		//printf("back from garbage trip heap_malloc\n");
 		next_index = heap_data.i+bytes;
 	}
 	p = &heap_data.h[heap_data.i];
@@ -39,6 +44,11 @@ heap_malloc(size_t bytes)
 	return p;
 }
 
+// ugh oh, garbage collection ruins day of copying, invalidates locally saved pointers
+// garbage collection can move all pointers meaning you need to reload them
+// this is a severe problem with no easy solution. All loaded stack variables
+// would need reloaded. Almost like volatile variables, very tough.
+// in this specific case
 // returns a pointer to one
 static void *
 heap_realloc(u8 *ptr, size_t bytes)
@@ -47,6 +57,7 @@ heap_realloc(u8 *ptr, size_t bytes)
 	u64 next_index, cache_offset;
 	u32 len;
 	
+	bytes=(bytes+7)/8*8;
 	if ((ptr) == heap_data.cache)
 	{
 		cache_offset = (u64)(heap_data.cache - heap_data.h);
@@ -56,88 +67,32 @@ heap_realloc(u8 *ptr, size_t bytes)
 			//printf("expanded allocation!\n");
 			heap_data.i = next_index;
 			return ptr;
+		} else { // not enough room call garbage collector
+			next_index=next_index-heap_data.i;
+			garbage_collect(next_index);
+			//garbage_collect(bytes);
+			//printf("back from garbage tripREALLOC\n");
+			return 0;
 		}
-		
 	}
+	// size of current
+	len = strlen((const char *)ptr)+1;//copy the null
 	// fresh allocation
 	p = heap_malloc(bytes);
-	if(((*ptr)&0xC0)==0x80)
-	{
-		len = ION_getLen(ptr);
-	} else {
-		len = strlen((const char *)ptr)+1;//copy the null
-	}
+	//~ if(((*ptr)&0xC0)==0x80)
+	//~ {
+		//~ len = ION_getLen(ptr);
+	//~ } else {
+		
+	//~ }
 	if(len>bytes)
 	{
 		len = bytes;
 	}
-	fith_memcpy(p, ptr, len);
+	memmove(p, ptr, len);
 	return p;
 	
 }
-
-#define JEACH_TEXT "SELECT json_each.type,json_each.value FROM json_each(?);"
-//~ static s64
-//~ fith_json_each(u8 *json, Data *val, sqlite3_stmt **sql)
-//~ {
-	//~ const u8 *res;
-	//~ u8 *ret;
-	//~ s64 step;
-	//~ sqlite3_stmt *s;
-	
-	//~ if (*sql)
-	//~ {
-		//~ s=*sql;
-	//~ } else {
-		//~ sqlite3_prepare_v2(fdb,
-						//~ JEACH_TEXT,
-						//~ sizeof JEACH_TEXT-1,
-						//~ &s,
-						//~ 0);
-		//~ sqlite3_bind_text(s, 1, (const char *)json, -1, SQLITE_TRANSIENT);
-		//~ *sql=s;
-	//~ }
-	
-	//~ /* prepare SQL query */
-	//~ step = sqlite3_step(s);
-	//~ if ((step = (step == SQLITE_ROW))) {
-		//~ res=sqlite3_column_text(s, 0);
-		//~ switch(res[0]) {
-			//~ case 0:   // NULL
-			//~ res = (const u8 *)"NULL";
-			//~ goto copy_exit;
-			//~ case 'a': // array
-			//~ goto text_exit;
-			//~ case 'f': // false
-			//~ goto copy_exit;
-			//~ case 'i': // integer
-			//~ val->i=sqlite3_column_int64(s, 1);
-			//~ goto reset_exit;
-			//~ case 'n': // null
-			//~ goto copy_exit;
-			//~ case 'o': // object
-			//~ goto text_exit;
-			//~ case 'r': // real
-			//~ val->d=sqlite3_column_double(s, 1);
-			//~ goto reset_exit;
-			//~ case 't': // true or text
-			//~ if (res[1]=='r') { // true
-				//~ goto copy_exit;
-			//~ }
-			//~ goto text_exit;
-			//~ default: return -1;
-		//~ }
-		//~ text_exit:
-		//~ res=sqlite3_column_text(s, 1);
-		//~ copy_exit:
-		//~ ret = logged_malloc_block(sqlite3_column_bytes(s,1));
-		//~ strcpy((char *)ret, (const char *)res);
-		//~ val->s = ret;
-	//~ }
-	//~ reset_exit:
-	//~ return step;
-//~ }
-
 
 static void
 save_function_addr(u8 *start, u64 len, u8 *addr)
@@ -169,55 +124,182 @@ get_function_addr(u8 *start, u64 len)
 	return node->val;
 }
 
+// add flag for "constant" tag
 static void
-save_variable(u8 *start, u64 len, s64 val)
+save_variable(u8 *start, u64 len, s64 val, u64 flags)
 {
-	StringTos64Node node;
+	StringTos64Node node=0;
 	u8 *p;
-	u32 index;
+	u64 index;
 	u8 tmp;
 	
 	tmp=start[len];
 	start[len]=0;
-	node=StringTos64Tree_find(vars, start);
-	if (node==0) // no variable saved
+	//printf("save_variable 1\n");
+	// first check locals
+	if(scope_index>0){
+		node=StringTos64Tree_find(vars[scope_index], start);
+	}
+	if (node==0) // no local variable saved
 	{
-		var_data.v[var_data.i] = val;
-		index = var_data.i;
-		var_data.i++;
-		if(var_data.i>var_data.hw){
-			var_data.hw+=512;
-			p = realloc(var_data.v, (var_data.hw/512+1)*4096);
-			if (p==0){
-				printf("OUT OF MEMORY!!!\n"); exit(1);
+		// next check globals
+		node=StringTos64Tree_find(vars[0], start);
+		if (node==0)
+		{
+			// make a variable at correct scope
+			var_data.v[var_data.i[scope_index]] = val;
+			index = var_data.i[scope_index];
+			index|=flags;
+			var_data.i[scope_index]++;
+			if(var_data.i[scope_index]>var_data.hw){
+				var_data.hw+=512;
+				p = realloc(var_data.v, (var_data.hw/512+1)*4096);
+				if (p==0){
+					printf("OUT OF MEMORY!!!\n"); exit(1);
+				}
+				var_data.v=(s64 *)p;
 			}
-			var_data.v=(s64 *)p;
+			StringTos64Tree_insert(&vars[scope_index], start, len, index);
+			start[len]=tmp;
+		} else { // global variable already exists
+			// update to new value
+			
+			if((node->val&0x8000000000000000)==0){
+				var_data.v[(node->val&0xFFFFFFFF)] = val;
+			} else {
+				printf("Cannot change constant: %s\n", start); 
+			}
+			start[len]=tmp;
 		}
-		StringTos64Tree_insert(&vars, start, len, index);
-		start[len]=tmp;
-	} else {
-		var_data.v[node->val] = val;
+	} else { // variable already exists
+		// update to new value
+		if((node->val&0x8000000000000000)==0){
+			var_data.v[(node->val&0xFFFFFFFF)] = val;
+		} else {
+			printf("Cannot change constant: %s\n", start);  
+		}
 		start[len]=tmp;
 	}
 }
 
 static s32
-get_variable(u8 *start, u64 len, s64 *val)
+get_variable(u8 *start, u64 len, s64 *val, u32 scope_index)
 {
 	StringTos64Node node;
 	u8 tmp;
 
 	tmp=start[len];
 	start[len]=0;
-	node=StringTos64Tree_find(vars, start);
+	node=StringTos64Tree_find(vars[scope_index], start);
 	if (node==0)
 	{
 		start[len]=tmp;
 		return 0;
 	}
 	start[len]=tmp;
-	*val=var_data.v[node->val];
+	*val=var_data.v[(node->val&0xFFFFFFFF)];
 	return 1;
+}
+
+static s64 *
+get_variable_addr(u8 *start, u64 len, u32 scope_index, s64 *val)
+{
+	StringTos64Node node;
+	u8 tmp;
+
+	tmp=start[len];
+	start[len]=0;
+	node=StringTos64Tree_find(vars[scope_index], start);
+	if (node==0)
+	{
+		start[len]=tmp;
+		return 0;
+	}
+	start[len]=tmp;
+	*val = node->val;
+	return &var_data.v[(node->val&0xFFFFFFFF)];
+}
+
+static inline void
+enter_scope(void)
+{
+	if(scope_index<63){
+		// increment index into variables
+		scope_index++;
+		// copy up current index within variables
+		var_data.i[scope_index] = var_data.i[scope_index-1];
+	} else {
+		printf("cannot increase into more scopes");
+	}
+}
+
+static inline void
+leave_scope(void)
+{
+	if(scope_index>0){
+		// check if this scope has local variables, if so destroy
+		if(vars[scope_index]){
+			StringTos64Tree_destroy(&vars[scope_index]);
+		}
+		scope_index--;
+		//printf("leaving scope!%d\n",scope_l->scopeIdx);
+	}
+}
+
+
+static struct PrngType{
+  u32 produce_count;          /* True if initialized */
+  u8 i, j;            /* State variables */
+  u8 s[256];          /* State variables */
+} Prng;
+
+static void 
+randomness_init(void)
+{
+	u32 i;
+	s32 res;
+	u8 k[256];
+	u8 t;
+	Prng.j = 0;
+	Prng.i = 0;
+	do{
+		res = getrandom(&k, 256, 0);
+	} while(res!=256);
+	for(i=0; i<256; i++){
+		Prng.s[i] = (u8)i;
+	}
+	for(i=0; i<256; i++){
+		Prng.j += Prng.s[i] + k[i];
+		t = Prng.s[Prng.j];
+		Prng.s[Prng.j] = Prng.s[i];
+		Prng.s[i] = t;
+	}
+}
+
+/*
+** Return N random bytes.
+*/
+static void 
+randomness(u32 N, void *pBuf)
+{
+	u8 *zBuf = pBuf;
+	u8 t;
+
+	if( (Prng.produce_count&0x3FFFFFFF)==0 )
+	{
+		randomness_init();
+	}
+	Prng.produce_count+=N;
+
+	do{
+		Prng.i++;
+		t = Prng.s[Prng.i];
+		Prng.j += t;
+		Prng.s[Prng.i] = Prng.s[Prng.j];
+		Prng.s[Prng.j] = t;
+		t += Prng.s[Prng.i];
+		*(zBuf++) = Prng.s[t];
+	}while( --N );
 }
 
 // binary search of a sorted array of s64
@@ -234,7 +316,7 @@ fith_binary_search(s64 *array, s64 size, s64 target)
 		{
 			return -1;
 		}
-		search_index = (min + max) / 2;
+		search_index = (min + max)>>1;
 		diff = target - array[search_index];
 		if (diff==0)
 		{
@@ -252,16 +334,16 @@ fith_binary_search(s64 *array, s64 size, s64 target)
 
 typedef struct tuple_s {
 	s64 x;
-	s64 y;
+	s64 *y;
 } tuple;
 
-static __inline s64 CMP_TUPLE(tuple a,tuple b)
+static inline s64 CMP_TUPLE(tuple a,tuple b)
 {
 	return ((a.x) - (b.x));
 }
 
 /*  Used in mergesort. */
-static __inline void INSERTION_SORT_tuple(tuple *dsti, const size_t size) 
+static inline void INSERTION_SORT_tuple(tuple *dsti, const size_t size) 
 {
 	size_t i=1;
 	tuple *dst=dsti;
@@ -357,16 +439,15 @@ static __inline s64 CMP_INT(s64 x,s64 y)
 }
 
 /*  Used in mergesort. */
-static void INSERTION_SORT_s64(s64 *dsti, const size_t size) 
+static inline void INSERTION_SORT_s64(s64 *dsti, const size_t size) 
 {
-	size_t i=1;
+	size_t i=0;
 	s64 *dst=dsti;
 	
-	for (; i < size; i++) 
-	{
+	do{
 		size_t j;
 		s64 x;
-
+        i++;
 		/* If this entry is already correct, just move along */
 		if (CMP_INT(dst[i - 1], dst[i]) <= 0)
 		{
@@ -387,7 +468,7 @@ static void INSERTION_SORT_s64(s64 *dsti, const size_t size)
 			}
 		}
 		dst[j] = x;
-	}
+	} while( (i+1) < size );
 }
 
 /* Standard merge sort */
@@ -512,21 +593,24 @@ MERGE_SORT_s64(s64 *dst, const size_t size) {
 static void
 garbage_collect(u64 last_requested_size)
 {
-	u8  *pBottom, *pTmp;
+	u8  *pBottom, *pTmp, *pCache;
 	u64 bottom, top, tmp, bucket;
 	u32 x=0, size;
 	u8 copy_collect=0;
 	tuple variables[2048];
 	
+	//printf("Taking out garbage\n");
 	top = (u64)(heap_data.i + heap_data.h);
 	// increment and check generation count
 	heap_data.generation_count++;
 	
 	// check if heap needs upgraded
-	bucket = (heap_data.generation_size+last_requested_size)*8;
+	bucket = (heap_data.generation_size+last_requested_size)*4;
+	//printf("heap_data.generation_size %ld, bucket %ld,last_requested_size %ld \n",heap_data.generation_size,bucket,last_requested_size);
 	// check if current partition is undersized
 	if (bucket > (heap_data.t+1))
 	{
+		//printf("attempting to expand heap\n");
 		copy_collect = 1;
 		heap_data.generation_count = 0;
 	}
@@ -539,16 +623,31 @@ garbage_collect(u64 last_requested_size)
 		heap_data.b = 0;
 	}
 	// copy filtered variables into array
-	for(u32 y=0;y<var_data.i;y++)
+	for(u32 y=0;y<var_data.i[scope_index];y++)
 	{
 		tmp = var_data.v[y];
 		if ( (tmp>=bottom)&&(tmp<top) )
 		{
 			variables[x].x = (s64)tmp-(u64)heap_data.h;
-			variables[x].y = y;
+			variables[x].y = &var_data.v[y];
 			x++;
 		}
 	}
+	//printf("x %ld, \n",x);
+	// copy filtered variables into array STACK
+	//printf("stack depth %ld, \n",(heap_data.c->stk-heap_data.c->stk_start)+2);
+	for(u32 y=0;y<(heap_data.c->stk-heap_data.c->stk_start)+2;y++)
+	{
+		tmp = heap_data.c->stk_start[y].i;
+		//printf("tmp %ld, bottom %ld, top %ld\n",tmp,bottom, top);
+		if ( (tmp>=bottom)&&(tmp<top) )
+		{
+			variables[x].x = (s64)tmp-(u64)heap_data.h;
+			variables[x].y = (s64 *)&heap_data.c->stk_start[y].s;
+			x++;
+		}
+	}
+	//printf("x %ld, \n",x);
 	
 	// TODO record stack vars (maybe locals) by pointer
 	
@@ -564,32 +663,47 @@ garbage_collect(u64 last_requested_size)
 			printf("CANNOT EXPAND HEAP!!!\n");
 			
 		} else {
-			//~ if (heap_data.h==pTmp){
-				//~ printf("REALLOC WORKED!!!\n");
-			//~ }
+			if (heap_data.h==pTmp){
+				printf("REALLOC WORKED!!!\n");
+			}
 			heap_data.h=pTmp;
 			heap_data.t = bucket-1;
-			//printf("LARGEST ADDR %ld, top %ld\n", (s64)heap_data.h+heap_data.t, heap_data.t);
+			//printf("BOTTOM ADDR %ld, LARGEST ADDR %ld, top %ld\n",(s64)heap_data.h, (s64)heap_data.h+heap_data.t, heap_data.t);
 		}
 	}
+	pTmp=0;
+	pCache=0;
 
 	// starting at bottom, copy down all valid pointers
 	pBottom = (u8 *)(heap_data.b + heap_data.h);
 	
 	for(u32 y=0;y<x;y++)
 	{
-		// get size
-		if(((*(HEAP_PTR(variables[y].x)))&0xC0)==0x80)
+		//printf("start moving items\n");
+		if(pTmp==HEAP_PTR(variables[y].x)) // same as previous
 		{
-			size = ION_getLen(HEAP_PTR(variables[y].x));
-		} else {
-			size = strlen((const char *)HEAP_PTR(variables[y].x))+1;//copy the null
+			// overwrite pointer to new location
+			*variables[y].y = (s64)(pCache);
+			continue;
 		}
+		pTmp=HEAP_PTR(variables[y].x);
+		// get size
+		//~ if(((*(HEAP_PTR(variables[y].x)))&0xC0)==0x80)
+		//~ {
+			//~ size = ION_getLen(HEAP_PTR(variables[y].x));
+		//~ } else {
+			size = strlen((const char *)HEAP_PTR(variables[y].x))+1;//copy the null
+		//~ }
 		
 		// copy into bottom
-		fith_memcpy(pBottom, HEAP_PTR(variables[y].x), size);
+		memmove(pBottom, HEAP_PTR(variables[y].x), size);
+		// set cache
+		heap_data.cache = pBottom;
+		// set local cache
+		pCache = pBottom;
 		// overwrite pointer to new location
-		var_data.v[variables[y].y] = (s64)(pBottom);
+		*variables[y].y = (s64)(pBottom);
+		//printf("NEWADDR %ld, \n",(s64)*variables[y].y);
 		// move pointer forward
 		pBottom+=size;
 	}

@@ -13,23 +13,24 @@
 #include <time.h>
 #include <math.h>
 #include <termios.h>
+#include <sys/random.h>
 
 #include "std_types.h"
-#include "fith_ION.h"
-#include "fith_util.h"
+//#include "fith_ION.h"
+//#include "fith_util.h"
 
 #define NDEBUG
 #define Parse_ENGINEALWAYSONSTACK
 
 typedef struct Xoken Token;
 
-typedef union boken Data;
+typedef union data_s Data;
 
-typedef union boken {
-	u8 *   s;
+typedef union data_s {
+	u8     *s;
 	s64    i;
 	f64    d;
-	Data * v;
+	Data   *v;
 	s32    fd[2];
 } Data;
 
@@ -49,54 +50,50 @@ typedef struct stringLitList{
 	u8 * buff[512];
 } stringLitList;
 
-typedef struct context_s{
-	ScopeList     *scopeList;
-	ScopeList     *varList;
+typedef struct context1_s{
 	Data *        stk;
 	Data *        stk_start;
-	Data *        stk_end;
-	Data *        vars;
 	Data *        cstk;
-	stringLitList *strList;
-	u8 **         words;
 	u8 *          buff;
 	u8 *          buff_start;
 	u8 *          out;
 	u8 *          yycur;
+	u8 *          source_code;
 	u8 *          stecpot;
 	struct        timespec time;
-	u32           num_dots;
 	u32           line_num;
-	u32           func_start_line_num;
-	u8            file_name_buff[512];
 	u8            is_def;
-	u8            is_fork_child;
-	u8            is_fork_parent;
-	u8            is_struct;
-	u8            is_union;
+	u8            is_customWord;
 	u8            is_fp;
 	u8            is_step;
-	u8            is_custom_type;
-	u8            inside_function;
 	u8            printed_error;
-	u8            local_macro;
-	u8            is_inline;
-} Context;
+	u8            word_flags;
+	u8            in_case;
+	u8            file_name_buff[512];
+} Context1;
 
-u8 *ION_NULL_VAL = (u8 *)"null";
-u8 *ION_TRUE_VAL = (u8 *)"true";
-u8 *ION_FALSE_VAL = (u8 *)"false";
+typedef struct context2_s{
+	Data *        Stub;
+} Context2;
 
+typedef struct context3_s{
+	Data *        Stub;
+} Context3;
+
+typedef struct{
+	Data *sp;
+	Data tos;
+} Registers;
 
 /* function prototypes */
 static void
 save_function_addr(u8 *start, u64 len, u8 *addr);
 static void
-save_variable(u8 *start, u64 len, s64 val);
+save_variable(u8 *start, u64 len, s64 val, u64 flags);
 static void
 garbage_collect(u64 last_requested_size);
-static void lex_skipVal(const u8 **YYCURSORx);
-static u32 ION_getLen(const u8 *input);
+//~ static void lex_skipVal(const u8 **YYCURSORx);
+//~ static u32 ION_getLen(const u8 *input);
 static void *
 heap_malloc(size_t bytes) __attribute__((malloc,alloc_size(1)));
 
@@ -109,8 +106,6 @@ heap_malloc(size_t bytes) __attribute__((malloc,alloc_size(1)));
 //~ indx_within(ScopeList * restrict str_l, u32  indx, u8 * restrict output);
 //~ static void
 //~ enter_scope(ScopeList * restrict scope_l);
-static inline void
-leave_scope(ScopeList * restrict scope_l);
 //~ static u32
 //~ varintGet(const u8 *s, u64 * pRes);
 //~ static u32 
@@ -128,7 +123,7 @@ raw_begin(void)
 {
     tcgetattr(STDIN_FILENO, &termios_orig);
     struct termios raw;
-    fith_memcpy(&raw, &termios_orig, sizeof(raw));
+    memmove(&raw, &termios_orig, sizeof(raw));
     raw.c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
     raw.c_oflag &= ~OPOST;
     raw.c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
@@ -149,6 +144,10 @@ print_code(const u8 *str, u32 len)
 	for(u32 x=0; x<len; x++){
 		if(str[x]=='\000') {
 			fputc ('\'', stdout);
+			continue;
+		}
+		if(str[x]==0x04) {
+			fputc ('}', stdout);
 			continue;
 		}
 		fputc (str[x], stdout);
@@ -188,7 +187,7 @@ load_file(u8 *file_name, u8 as_function)
 }
 
 // new strat: manage buffer only, then regen current line every time
-static s32
+static s64
 fith_fgets(u8 *string, u32 limit, u8 *history)
 {
 	u8 * histEnd;
@@ -403,10 +402,9 @@ fith_fgets(u8 *string, u32 limit, u8 *history)
 	return top;
 }
 
-/* globals */
+#define FITH_STACK_MAX 135
 
-//~ static FILE * outputFile,* typeProtoFile, * typesFile,
-	//~ * funcProtoFile, * globalsFile, * interfaceFile, * includesFile;
+/* globals */
 #define DECREMENT_STACK \
 if (c->stk>c->stk_start) \
 { \
@@ -421,30 +419,63 @@ if (c->stk<c->stk_end) \
 } else \
 { printf("stack overflow!!!\n"); }
 
+//~ static s8
+//~ check_up(Data *stk, Data *start,s32 x)
+//~ {
+	//~ s8 tmp = ((((s64)(stk - start))+(x))>FITH_STACK_MAX);
+	//~ if(tmp){printf("stack overflow!!!\n");}
+	//~ return tmp;
+//~ }
+
+//~ static s8
+//~ check_down(Data *stk, Data *start,s32 x)
+//~ {
+	//~ s8 tmp = ((((s64)(stk - start))+(x))<0);
+	//~ if(tmp){printf("stack underflow!!!\n");}
+	//~ return tmp;
+//~ }
+
+
 #define STACK_CHECK(x) \
-if ( (((c->stk - c->stk_start)+(x))<0)){printf("stack underflow!!!\n"); goto loop;} \
-else if ((((c->stk - c->stk_start)+(x))>374)){printf("stack overflow!!!\n"); goto loop;}
+if ( (((r.sp - c->stk_start)+(x))<0)){printf("stack underflow!!!\n"); goto loop;} \
+else if ((((r.sp - c->stk_start)+(x))>374)){printf("stack overflow!!!\n"); goto loop;}
+
+//~ #define STACK_CHECK_DOWN(x) 
+//~ if ( check_down(r.sp,c->stk_start, (x) ) ){ goto loop;}
+
+//~ #define STACK_CHECK_UP(x) 
+//~ if ( check_up(r.sp,c->stk_start, (x) ) ){ goto loop;}
+
+#define STACK_CHECK_DOWN(x) \
+if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))<0), 0) ){/*printf("stack underflow!!!\n");*/ goto stack_down_print;}
+
+#define STACK_CHECK_UP(x) \
+if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))>FITH_STACK_MAX), 0) ){/*printf("stack overflow!!!\n");*/ goto stack_up_print;}
+
+//~ #define STACK_CHECK_DOWN_R(x) 
+//~ if ( check_down(r.sp,c->stk_start, (x) ) ){  return tos;}
+
+//~ #define STACK_CHECK_UP_R(x) 
+//~ if ( check_up(r.sp,c->stk_start, (x) ) ){  return tos;}
+
+//~ #define STACK_CHECK_DOWN_R(x) 
+//~ if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))<0), 0) ){/*printf("stack underflow!!!\n");*/ goto stack_down_print;}
+
+//~ #define STACK_CHECK_UP_R(x) 
+//~ if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))>FITH_STACK_MAX), 0) ){/*printf("stack overflow!!!\n");*/ goto stack_up_print;}
+
+#define STACK_CHECK_DOWN_R(x) \
+if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))<0), 0) ){printf("stack underflow!!!\n"); return r;}
+
+#define STACK_CHECK_UP_R(x) \
+if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))>FITH_STACK_MAX), 0) ){printf("stack overflow!!!\n"); return r;}
 
 
 #include "fith_avl.c"
 #include "fith_data.c"
-#include "fith_ION.c"
-#include "../tool_output/fith_ION_lex.c"
+//#include "fith_ION.c"
+//#include "../tool_output/fith_ION_lex.c"
 #include "../tool_output/fith_lex.c"
-//#include "../tool_output/fl_c_gram.c"
-//~ #include "../tool_output/fcompile_gram.c"
-//~ #include "../tool_output/ignore_gram.c"
-
-//#define INTPUT_FILE "input/weeklystat.c"
-#define DEFAULT_DIR     "c_src/"
-#define OUTPUT_FILE     "source.c"
-#define TYPE_PROTO      "type_proto.h"
-#define TYPES           "types.h"
-#define FUNC_PROTO      "func_proto.h"
-#define FL_STD_FILE     "fl_std.h"
-#define FL_GLOBALS_FILE "globals.h"
-#define INTERFACE_FILE  "interface.h"
-#define INCLUDES_FILE   "includes.h"
 
 int main(int argc, char **argv)
 {
@@ -453,46 +484,33 @@ int main(int argc, char **argv)
 	unsigned char output_string[65536] = {0};
 	unsigned char stringBuffer[4096] = {0};
 	unsigned char *strBuff;
-	Data stack[384]={0};
-	Data vars[512]={0};
-	//unsigned char file_name_buff[512] = {0};
+	Data stack[FITH_STACK_MAX+1]={0};
+	Data cstack[128]={0};
 	unsigned char * output = output_string;
 	//u8 dirName[512];
-	Data cstack[128]={0};
-	u8 * words[128]={0};
-	//u8 * dirName_p;
-	ScopeList scopeList={0};
-	ScopeList varList={0};
-	stringLitList strList={0};
-	int tmp_token;
+	
 	u32 x, inputLen,z;
-	Context c = {0};
+	Context1 c = {0};
+	Context2 c2 = {0};
+	Registers r = {0};
 	FILE * pFile;
 	DIR *d=0;
 	struct dirent *dir;
 	output_string[0]=3;
 	output_string_base=&output_string[1];
-	c.scopeList = &scopeList;
-	c.varList = &varList;
 	c.out = output;
 	c.buff_start = output_string_base;
 	c.buff = output_string_base;
+	r.sp = stack;
 	c.stk = stack;
 	c.stk_start = stack;
-	c.stk_end = &stack[374];
-	c.vars = vars;
 	c.cstk = cstack;
-	c.words = words;
-	c.strList = &strList;
-	scopeList.cursor_stack[0]=scopeList.table;
-	scopeList.end=&scopeList.table[65535];
-	varList.cursor_stack[0]=varList.table;
-	varList.end=&varList.table[65535];
 	strBuff = stringBuffer;
 	
 	var_data.v = malloc(4096);
 	var_data.hw=511;
 	
+	heap_data.c = &c;
 	heap_data.h = malloc(128*1024*1);
 	heap_data.t=(128*1024*1)-1;
 	heap_data.cache=(u8*)5; // set to garbage
@@ -536,20 +554,20 @@ int main(int argc, char **argv)
 						//printf("strBuff: %s\n", strBuff);
 						if (!(strncmp((const char *)strBuff, ".dump", 5)))
 						{
-							//*(c.buff_start) = '\000';
-							//printf("xxx: %s end\n", output_string_base);
-							//printf("%s",output_string_base);
-							print_code(output_string_base, c.buff_start-output_string_base);
+							//*(c.buff) = '\000';
+							//printf("xxx: %s end\n", c.buff_start);
+							//printf("%s",c.buff_start);
+							print_code(c.buff_start, c.buff-c.buff_start);
 							continue;
 						}
 						if (!(strncmp((const char *)strBuff, ".save", 5)))
 						{
-							*(c.buff_start) = '\000';
+							*(c.buff) = '\000';
 							pFile = fopen ( "session.fith", "w" );
 							if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
-							fwrite (output_string_base,
+							fwrite (c.buff_start,
 								sizeof(char),
-								c.buff_start-output_string_base,
+								c.buff-c.buff_start,
 								pFile);
 							fflush (pFile);
 							fclose (pFile);
@@ -557,29 +575,29 @@ int main(int argc, char **argv)
 							continue;
 						}
 						
-						data = c.buff_start;
+						data = c.buff;
 						z=0;
 						if((*strBuff!='\n')&&(*strBuff!='.')){
 							while(strBuff[z]!=3){
-								*c.buff_start=strBuff[z];
+								*c.buff=strBuff[z];
 								z++;
-								c.buff_start++;
+								c.buff++;
 							}
 						}
 						//printf("data: %s\n", strBuff);
 						if(c.is_fp)
 						{
-							*(c.buff_start) = 'f';
-							*(c.buff_start+1) = '.';
-							*(c.buff_start+2) = '\003';
+							*(c.buff) = 'f';
+							*(c.buff+1) = '.';
+							*(c.buff+2) = '\003';
 						} else {
-							*(c.buff_start) = '.';
-							*(c.buff_start+1) = '\003';
+							*(c.buff) = '.';
+							*(c.buff+1) = '\003';
 						}
-						do {
-							tmp_token = lex(data, &c.line_num, &c);
-						} while (tmp_token != 0);
-						*(c.buff_start) = 3;
+						c.source_code = data;
+						r = lex(&c, r, &c2);
+
+						*(c.buff) = 3;
 					}
 				}
 				break;
@@ -591,7 +609,7 @@ int main(int argc, char **argv)
 				one_file_return:
 				break;
 			}
-			c.buff_start = output_string_base;
+			c.buff = c.buff_start;
 		}
 	}
 	
@@ -637,12 +655,9 @@ int main(int argc, char **argv)
 		
 		data = load_file(c.file_name_buff, 0);
 		
-		do {
-			tmp_token = lex(data, &c.line_num, &c);
-
-			//Parse(pEngine, tmp_token, token);
-			
-		} while (tmp_token != 0);
+		c.source_code = data;
+		
+		r = lex(&c, r, &c2);
 
 		}
 		if (c.is_def)
@@ -802,12 +817,12 @@ int main(int argc, char **argv)
 	//~ //printf("entering scope!%d\n",scope_l->scopeIdx);
 //~ }
 
-static inline void
-leave_scope(ScopeList * restrict scope_l)
-{
-	scope_l->scopeIdx--;
-	//printf("leaving scope!%d\n",scope_l->scopeIdx);
-}
+//~ static inline void
+//~ leave_scope(ScopeList * restrict scope_l)
+//~ {
+	//~ scope_l->scopeIdx--;
+	//~ //printf("leaving scope!%d\n",scope_l->scopeIdx);
+//~ }
 
 
 //~ const u8 base64EncodeLookup[64]= 
