@@ -947,7 +947,7 @@ loop: // label for looping within the lexxer
 	/*!re2c                          // start of re2c block **/
 	re2c:define:YYCTYPE = "u8";      //   configuration that defines YYCTYPE
 	re2c:yyfill:enable  = 0;         //   configuration that turns off YYFILL
-									 //
+
 	* { 
 		u8 *s=start;
 		u8 *f=YYCURSOR;
