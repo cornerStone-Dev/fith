@@ -2,7 +2,7 @@
 all: bin tool_output gen bin/fith fith_src fith_src/script.fith
 
 #tool_output/fith_gram.c 
-bin/fith: src/fith_compiler.c src/fith_data.c src/fith_avl.c src/fith_ION.c tool_output/fith_lex.c tool_output/fith_ION_lex.c tool_output/fith_util.o
+bin/fith: src/fith_compiler.c src/fith_data.c src/fith_avl.c src/fith_words.c tool_output/fith_lex.c tool_output/fith_ION_lex.c tool_output/fith_util.o
 	gcc -Os -march=native -fno-builtin-strlen -fno-stack-protector -s -o bin/fith src/fith_compiler.c -Wall
 	size bin/fith
 

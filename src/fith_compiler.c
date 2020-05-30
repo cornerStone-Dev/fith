@@ -473,6 +473,7 @@ if ( __builtin_expect( ((((s64)(r.sp - c->stk_start))+(x))>FITH_STACK_MAX), 0) )
 
 #include "fith_avl.c"
 #include "fith_data.c"
+#include "fith_words.c"
 //#include "fith_ION.c"
 //#include "../tool_output/fith_ION_lex.c"
 #include "../tool_output/fith_lex.c"
