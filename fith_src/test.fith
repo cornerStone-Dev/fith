@@ -128,6 +128,7 @@ test1:
 5 test1
 
 10.0 15.0 %f .f
+.6 .7 +f .f
 
 \'What an incomplete' ' thought on the subject.' +s dup p 'furthermore!' +s p
 clear
@@ -176,20 +177,30 @@ clear \debug
 
 \~ loop
 
+20 [h] =testArray
+testArray [].len .
+55 5 testArray =[]
+5 testArray [] . clear
+'array string' 0 testArray =[]
+0 testArray [] p
+
+
 (
+STRUCT
+'Record name count length' struct
+function generation:
+getRecord.name
+setRecord.name
+equavlent to
+3 array =var
+...
+var getRecord.name
+getRecord.name: 0 swap [];
+setRecord.name: 0 swap =[];
+array access
+var 
 
-0 =i
-: i 10 <; :i 1 + =i; for{
-\ do stuff
-}
 
-for {
-\ do test
-\ do stuff
-\ do increment stuffs
-}
-
-need constants...
 )
 
 

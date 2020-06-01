@@ -104,20 +104,26 @@ static inline Registers
 _fith_sort(Context1 *c, Registers r) __attribute__((always_inline));
 static inline Registers
 _fith_fabs(Context1 *c, Registers r) __attribute__((always_inline));
-static inline Registers
-_fith_chan(Context1 *c, Registers r) __attribute__((always_inline));
+static Registers
+_fith_chan(Context1 *c, Registers r);
 static inline Registers
 _fith_clear(Context1 *c, Registers r) __attribute__((always_inline));
+static Registers
+_fith_sleep(Context1 *c, Registers r);
+static Registers
+_fith_array(Context1 *c, Registers r);
+static Registers
+_fith_malloc(Context1 *c, Registers r);
 static inline Registers
-_fith_sleep(Context1 *c, Registers r) __attribute__((always_inline));
-static inline Registers
-_fith_array(Context1 *c, Registers r) __attribute__((always_inline));
-static inline Registers
-_fith_malloc(Context1 *c, Registers r) __attribute__((always_inline));
+_fith_free(Context1 *c, Registers r) __attribute__((always_inline));
 static inline Registers
 _fith_random(Context1 *c, Registers r) __attribute__((always_inline));
+static Registers
+_fith_realloc(Context1 *c, Registers r);
 static inline Registers
-_fith_realloc(Context1 *c, Registers r) __attribute__((always_inline));
+_fith_array_get(Context1 *c, Registers r) __attribute__((always_inline));
+static inline Registers
+_fith_array_set(Context1 *c, Registers r) __attribute__((always_inline));
 
 static inline Registers
 push_i(Context1 *c, Registers r, s64 i)
@@ -166,7 +172,7 @@ static inline Registers
 bitwise_or(Context1 *c, Registers r)
 {
 	r.sp--;
-	r.tos.i = r.sp->i^r.tos.i;
+	r.tos.i = r.sp->i|r.tos.i;
 	return r;
 }
 
@@ -592,7 +598,7 @@ _fith_fabs(Context1 *c, Registers r)
 	return r;
 }
 
-static inline Registers
+static Registers
 _fith_chan(Context1 *c, Registers r)
 {
 	s32 res = socketpair(AF_UNIX, SOCK_STREAM, 0, (r.sp+2)->fd);
@@ -615,7 +621,7 @@ _fith_clear(Context1 *c, Registers r)
 	return r;
 }
 
-static inline Registers
+static Registers
 _fith_sleep(Context1 *c, Registers r)
 {
 	r.sp-=2;
@@ -626,7 +632,7 @@ _fith_sleep(Context1 *c, Registers r)
 	return r;
 }
 
-static inline Registers
+static Registers
 _fith_array(Context1 *c, Registers r)
 {
 	// allocate array, 8 byte header
@@ -643,6 +649,30 @@ _fith_array(Context1 *c, Registers r)
 }
 
 static inline Registers
+_fith_array_get(Context1 *c, Registers r)
+{
+	r.sp-=1;
+	r.tos = r.tos.v[r.sp->i+1];
+	return r;
+}
+
+static inline Registers
+_fith_array_set(Context1 *c, Registers r)
+{
+	r.sp-=3;
+	r.tos.v[(r.sp+2)->i+1] = *(r.sp+1);
+	r.tos = *r.sp;
+	return r;
+}
+
+static inline Registers
+_fith_array_len(Context1 *c, Registers r)
+{
+	r.tos.i = (r.tos.v->i>>3)-1;
+	return r;
+}
+
+static Registers
 _fith_malloc(Context1 *c, Registers r)
 {
 	r.tos.s= malloc(r.tos.i);
@@ -654,6 +684,13 @@ _fith_malloc(Context1 *c, Registers r)
 }
 
 static inline Registers
+_fith_free(Context1 *c, Registers r)
+{
+	free(r.tos.s);
+	return _fith_drop(c,r);
+}
+
+static inline Registers
 _fith_random(Context1 *c, Registers r)
 {
 	r.sp->i = r.tos.i;
@@ -662,7 +699,7 @@ _fith_random(Context1 *c, Registers r)
 	return r;
 }
 
-static inline Registers
+static Registers
 _fith_realloc(Context1 *c, Registers r)
 {
 	void *ptr;

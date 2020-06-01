@@ -588,8 +588,8 @@ int main(int argc, char **argv)
 						//printf("data: %s\n", strBuff);
 						if(c.is_fp)
 						{
-							*(c.buff) = 'f';
-							*(c.buff+1) = '.';
+							*(c.buff) = '.';
+							*(c.buff+1) = 'f';
 							*(c.buff+2) = '\003';
 						} else {
 							*(c.buff) = '.';

@@ -12,7 +12,7 @@
 	// integer literals
 	oct = "0" [0-7]*;
 	dec = [1-9][0-9]*;
-	hex = '0x' [0-9A-F]+; // a-f removed
+	hex = "0x" [0-9A-F]+; // a-f removed
 	// floating literals
 	frc = [0-9]* "." [0-9]+ | [0-9]+ ".";
 	exp = 'e' [+-]? [0-9]+;
@@ -509,8 +509,7 @@ static Registers lex_word(Context1 *c, Registers r, u8 **YYCURSORout, u64 len) /
 	}
 	"free" {
 		STACK_CHECK_DOWN_R(-1)
-		free(r.tos.s);
-		return _fith_drop(c,r);
+		return _fith_free(c,r);
 	}
 	"sort" {
 		STACK_CHECK_DOWN_R(-1)
@@ -569,10 +568,10 @@ static Registers lex_word(Context1 *c, Registers r, u8 **YYCURSORout, u64 len) /
 		STACK_CHECK_DOWN_R(-2)
 		return _fith_sleep(c,r);
 	}
-	"array" {
-		STACK_CHECK_DOWN_R(-1)
-		return _fith_array(c,r);
-	}
+	//~ "array" {
+		//~ STACK_CHECK_DOWN_R(-1)
+		//~ return _fith_array(c,r);
+	//~ }
 	"reads" { // (0fd, 1pBuf, TOS=sizeof(pBuf))
 		STACK_CHECK_DOWN_R(-3)
 		r.sp-=2;
@@ -1221,6 +1220,30 @@ loop: // label for looping within the lexxer
 
 	"@" {
 		c->word_flags = 2;
+		goto loop;
+	}
+	
+	"[]" {
+		STACK_CHECK_DOWN(-2)
+		r=_fith_array_get(c,r);
+		goto loop;
+	}
+
+	"=[]" {
+		STACK_CHECK_DOWN(-3)
+		r=_fith_array_set(c,r);
+		goto loop;
+	}
+
+	"[h]" {
+		STACK_CHECK_DOWN_R(-1)
+		r=_fith_array(c,r);
+		goto loop;
+	}
+
+	"[].len" {
+		STACK_CHECK_DOWN_R(-1)
+		r=_fith_array_len(c,r);
 		goto loop;
 	}
 
