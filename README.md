@@ -2,7 +2,7 @@
 
 This project is an interpreter for the fith programming language.
 
-To build the project requires gcc, make, and re2c. If on Ubunutu intall build-essential and re2c.
+To build the project requires gcc, make, and re2c. If on Ubunutu install build-essential and re2c.
 
 Clone from git, then `$ make`
 
