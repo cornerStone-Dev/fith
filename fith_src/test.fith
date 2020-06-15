@@ -1,6 +1,7 @@
 \ simple tests
 \debug
-first_test: 3 8 + 11 != if{ 'math error' p } ;
+first_test: 3 8 + 11 != if{ 'math error' p else 'first_test pass' p }} ;
+first_test
 
 \ multi line string
 '
@@ -48,7 +49,9 @@ factors_of:
 ;
 factors_of
 
-floating?: 5.5 6.3 f+ 11.8 != if{ 'floating point is not equal' p } ;
+floating?: 5.5 6.3 +f 11.8 != if{ 'floating point is not equal' p else 'floating point pass' p }} ;
+floating? 
+
 
 \ child function to send message, read message from parent and send done
 childSend:
@@ -97,6 +100,8 @@ else
 } 
 'Always' p 
 ;
+if{_else_chain
+
 
 \ loop factorial
 5 0 swap                           \ place a zero below n
