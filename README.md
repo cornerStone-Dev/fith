@@ -8,3 +8,6 @@ Clone from git, then `$ make`
 
 Browse the Makefile for more information on building.
 
+Browse test.fith in fith_src/ for examples on usage. You can run it after making as:
+
+`$ ./bin/fith fith_src/test.fith`

@@ -1,0 +1,326 @@
+\ simple tests
+\debug
+first_test: 3 8 + 11 != if{ 'math error' p } ;
+
+\ multi line string
+'
+		Hello 
+		World!
+' p 
+'yoyo' p
+7 6 8 9 drop drop drop drop 
+
+\ test if{ else chain, use random
+random_if{_else:
+	random abs 3 &
+	dup 0 == if{
+		'zero' p
+	else dup 1 == if{
+		'one' p
+	else dup 2 == if{
+		'two' p
+	else 3 == if{
+		'three' p
+	} } } }
+;
+random_if{_else 
+clear
+
+\ regular funtions with a loop test
+divisibleBy5?: dup 5 % not ;
+divisibleBy3?: dup 3 % not ;
+
+factors_of:
+	0 10
+	do
+		1 -
+		divisibleBy5? if{ 
+			swap over + swap
+		else  
+			divisibleBy3? if{ 
+				swap over + swap
+			}
+		}
+		
+		dup 1 == if{ leave }
+	loop
+	drop 23 != if{ '3 and 5 test faillure' p }
+;
+factors_of
+
+floating?: 5.5 6.3 f+ 11.8 != if{ 'floating point is not equal' p } ;
+
+\ child function to send message, read message from parent and send done
+childSend:
+	chan1 'Hello, parent!' writes 'finished sending msg to parent' p 
+	chan1 buf 128 reads 'From Parent:' p p 
+	chan1 'done' writes 
+;
+0 =chan1
+0 =chan0
+0 =buf
+
+fork_and_talk:
+	\ prepare for transfer, need to add close word
+	chan =chan1 =chan0 \ take up channel file descriptors
+	128 malloc =buf \ create and save buffer
+	@childSend fork =pid \ create child process save off pid
+	chan0 buf 128 reads 'From child:' p p \ read message from child
+	chan0 'Hello, child!' writes 'finished sending msg to child' p \send message 2 child
+	chan0 buf 128 reads 'done' 5 memcmp 0 != if{ 'message not expected' } \ read message from child
+;
+fork_and_talk
+if{_else_chain:
+\ if{ else check
+ 1 if{ 
+	'if{ true' p
+else 
+	'ERROR1' p
+	 1 if{ 
+		'ERROR2' p 
+	else 
+		'ERROR3' p 
+	} 
+	'ERROR4' p
+	1 if{
+	'ERROR5' p
+	}
+	0 if{
+		9
+	else
+		1 if{
+			'ERROR6' p
+		else
+			'ERROR7' p
+		}
+	}
+} 
+'Always' p 
+;
+
+\ loop factorial
+5 0 swap                           \ place a zero below n
+  do dup 1 - dup 1 == if{ leave } loop     \ make stack like 0 n ... 4 3 2 1
+  do * over 0 == if{ leave } loop   \ multiply till see the zero below answer
+  swap drop 120 != if{ 'loop factorial fail' }
+
+\ recursive factorial
+fact: 
+	dup 1 > if{                     \ if{ 1 (or 0) \just leave on stack
+		dup 1 - fact               \ next number down - get its factorial
+		 * }                     \ and mult - leavin ans on stack
+;
+5 fact 120 != if{ 'recursive factorial fail' }
+
+\ variable overwrite
+220  =num 
+22 =bum
+55 =fum
+num bum fum + + =fum fum
+=num num 297 != if{ 'variable overwite fail' }
+
+test1:
+
+	\'test1 here' p
+	 1 - dup 0 != if{ test1 }
+
+;
+5 test1
+
+10.0 15.0 %f .f
+.6 .7 +f .f
+
+\'What an incomplete' ' thought on the subject.' +s dup p 'furthermore!' +s p
+clear
+0 =i
+do
+	
+	i . dup 1 + =i
+	
+10 == if{ leave } loop
+
+0 =:num_beasts
+10 =num_beasts
+10 =:num_beasts
+10 +=num_beasts
+
+1 =incVar incVar .
+3  . -=incVar incVar .
+do random 0xFFFF & 100 < if{ 'leaving loop' p leave } loop 'after loop' p
+clear -2 .
+\debug
+( top of stack value )  case .
+( top of stack value )	. -1 == ( IF THIS IS NOT ZERO-> ) if{ 'negative one' p  }
+( top of stack value )	. 0 == if{ 'zero' p }
+( top of stack value )	. 1 == if{ 'one' p  }
+( top of stack value )	-2 == if{ 'negative two' p }
+( top of stack value )	 drop 'value on stack is' p . drop
+end
+.
+
+clear -2
+dup -1 == if{ 'negative one' p 
+	else dup 0 == if{ 'zero' p
+	else dup 1 == if{ 'one' p
+	else dup -2 == if{ 'negative two' p
+	else 'value on stack is' p .
+	} } } }
+
+clear \debug 
+
+
+\~ 'start' =string
+\~ 30000 =i do
+
+	\~ string 'more string to add MAKE IT SUPER LONG ' +s =string
+	\~ i 0 == if{ leave } 1-=i
+
+\~ loop
+
+20 [h] =testArray
+testArray [].len .
+55 5 testArray =[]
+5 testArray [] . clear
+'array string' 0 testArray =[]
+0 testArray [] p
+
+
+(
+STRUCT
+'Record name count length' struct
+function generation:
+getRecord.name
+setRecord.name
+equavlent to
+3 array =var
+...
+var getRecord.name
+getRecord.name: 0 swap [];
+setRecord.name: 0 swap =[];
+array access
+var 
+
+
+)
+
+
+\~ indexInc: $index dup 1 + =$index ;
+
+\~ 0   =$index
+\~ 5   =$matrix
+\~ 200 =$sizeOfMatrix
+
+\~ $sizeOfMatrix $sizeOfMatrix * . array =$matrix
+
+\~ \ set array [5] to 10
+\~ 10 5 =$matrix[]
+
+\~ \ what is at array[5]? put on stack
+\~ 5 $matrix[] . drop
+\~ .
+\~ \GC
+\~ '[0]' s2o dup p =$IONarray
+
+\~ 0
+\~ do
+	\~ dup =$cart1[#].i
+	\~ 1 +
+	\~ dup $sizeOfMatrix ==
+\~ if{ leave } loop
+\~ drop
+\~ $cart1 . 
+\~ jeach  \first val on stack .
+	\~ $cart1 
+	\~ jeach 
+		 \~ over * $IONarray '[#]' ion-set-i ( dup p ) =$IONarray \=$cart2[#].i \indexInc =$matrix[] \ $IONarray '[#]' ion-set-i ( dup p ) =$IONarray
+	\~ jdone
+	\~ drop \GC
+\~ jdone
+
+\~ \'hello' praw
+\~ 55  =$jsonObj.age.i
+\~ 1  =$jsonObj.dogs.i
+\~ 7.864 =$jsonObj.height.d
+\~ '["yoyo","hello motto"]' =$jsonObj.favs.j
+\~ '{"circuit":"breaker","pencil":"broken"}' =$jsonObj.inBox.j
+\~ 'special' =$jsonObj.type.s $jsonObj p
+
+\~ $jsonObj s2o p
+\~ \$jsonObj s2o search
+\~ $jsonObj s2o '.type' ion-get p
+ \~ $jsonObj s2o '.age' ion-get . drop
+\~ $jsonObj s2o '.height' ion-get f. drop
+ \~ $jsonObj s2o '.favs' ion-get dup p 0 swap . '[]' ion-get p
+ \~ $jsonObj s2o '.inBox' ion-get p
+ \~ $jsonObj s2o '.inBox' ion-get 'hammer' swap '.tool' ion-set-s dup p
+
+ \~ 'screw' swap '.tool' ion-set-s dup p .
+ \~ 55 swap '.tool' ion-set-i dup p
+
+\~ '[0,1,2,[0,1,2,3,4,5,6,7,8,9],4,5,6,7,8,9]' s2o dup p =$IONarraytest
+\~ 3 3 55 '[][]' $IONarraytest ion-set-i dup p =$IONarraytest
+\~ 3 77 '[][#]' $IONarraytest ion-set-i dup p =$IONarraytest
+\~ 3 'hello' '[][#]' $IONarraytest ion-set-s dup p =$IONarraytest
+\~ 3 7.68 '[][#]' $IONarraytest ion-set-d dup p =$IONarraytest
+\~ 2 '{"color":"green"}' s2o '[]' $IONarraytest ion-set-o dup p =$IONarraytest
+\~ clear
+\~ '[0,1]' s2o dup p =$IONarraytest
+\~ $IONarraytest : $IONarraytest : over * . drop ; ion-each drop ; ion-each
+
+(
+$IONarraytest 
+: 
+	$IONarraytest 
+	: 
+		over * . drop 
+	;
+	ion-each drop
+;
+ion-each
+)
+
+
+\=$cart2[#].i
+
+\~ .
+\~ : 'hello from anon function' p ; call
+
+\ $cart2 p
+\ 1 2 3 4 5 depth =$var[?].i puts it all into array
+ \~ \## REQUEST FOR COMMENT
+\~ jeach \ goes once per element in array, pushes JSON value onto stack
+	\~ ( value is on top of the stack )
+	\~ ( do stuffs )
+\~ jdone
+\~ jeach \ goes once per element in array
+	\~ 5 2.2 
+	\~ jeach.a ( this pushes value on stack )
+\~ jdone
+
+\~ jeach
+	\~ jeach.a 
+	\~ jeach
+		\~ jeach.b
+	\~ jdone
+\~ jdone
+
+
+
+		( x1 x2 x3 -- )
+		( #var1=x1 #var2=x2 #var3=x3 )
+\~ fact: { #var1 #var2 #var3 } 
+	\~ dup 1 > if{                     \ if{ 1 (or 0) \just leave on stack
+		\~ dup 1 - fact               \ next number down - get its factorial
+		 \~ * }                     \ and mult - leavin ans on stack
+\~ ;
+
+
+
+
+
+
+
+
+
+
+
